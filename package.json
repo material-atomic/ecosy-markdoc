@@ -1,0 +1,16 @@
+{
+  "name": "@ecosy/markdoc",
+  "version": "1.0.0",
+  "main": "index.js",
+  "license": "MIT",
+  "scripts": {
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.4"
+  },
+  "dependencies": {
+    "@ecosy/core": "^0.3.4"
+  }
+}

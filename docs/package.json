@@ -1,0 +1,13 @@
+{
+  "name": "ecosy-markdoc-documentation",
+  "version": "1.0.0",
+  "main": "index.js",
+  "license": "MIT",
+  "devDependencies": {
+    "typescript": "^6.0.3",
+    "wrangler": "^4.84.0"
+  },
+  "scripts": {
+    "dev": "wrangler dev"
+  }
+}
