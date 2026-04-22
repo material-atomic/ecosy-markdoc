@@ -1,4 +1,5 @@
 import { classable } from "./classable";
+import { pushScope, popScope } from "./inject";
 import type { StaticExtended } from "./placeholder";
 import type {
   AnyClass,
@@ -140,7 +141,11 @@ type RemoveIndexSignature<T> = {
  */
 export type InjectedInstances<Injects extends InjectMap> = InjectableOnInit &
   RemoveIndexSignature<{
-    [K in keyof Injects]: Injects[K] extends InjectClassable<infer Instance> ? Instance : never;
+    [K in keyof Injects]: Injects[K] extends { target: new (...args: any[]) => infer Instance; get?: (...args: any[]) => any }
+      ? Instance
+      : Injects[K] extends new (...args: any[]) => infer Instance
+        ? Instance
+        : never;
   }>;
 
 /**
@@ -444,6 +449,15 @@ export function Injectable<Injects extends InjectMap>(injects: Injects) {
        */
       const lazyAccessor = new InjectedAccessor(next, resolve);
 
+      // Bridge Inject default params → Injectable's resolve().
+      // During this loop, any `Inject(key)` call from a constructor
+      // routes through this scope's `resolve` for proper lazy + cycle-safe
+      // resolution. Stack-based so nested Injectables don't clobber each other.
+      pushScope({
+        hasKey: (k) => Object.prototype.hasOwnProperty.call(injects, k),
+        resolve,
+      });
+
       // Resolve all declared injections (order-independent thanks to lazy resolution).
       for (const key of Object.keys(injects)) {
         resolve(key);
@@ -477,6 +491,9 @@ export function Injectable<Injects extends InjectMap>(injects: Injects) {
       Cls.__instances = next;
 
       } finally {
+        // Pop this scope so nested Injectables don't leak their resolver.
+        popScope();
+
         // Release the construction lock in `finally` so a throw anywhere
         // above (cycle detection, factory error, orphan loop) still unblocks
         // the class for future construction attempts.

@@ -151,15 +151,19 @@ export type ClassableAsync<
 /**
  * Extracts the underlying target class from a {@link Classable}.
  * Works for both plain constructors and factory descriptors.
+ *
+ * Constraint is structural (`{ target } | constructor`) rather than
+ * `Classable<…, any>` to avoid contravariance on the `get` parameter
+ * when `Runtime` differs between definition and call site.
  */
 export type ClassableTarget<
-  Cls extends Classable<any, any, any, any>,
+  Cls extends { target: new (...args: any[]) => any; [k: string]: any } | (new (...args: any[]) => any),
   Getter extends string = string,
 > = Cls extends {
   target: ClassStatic<any, infer Target, any>;
   get?: (...args: any[]) => Promisable<[...infer Args]>;
 }
-  ? ClassStatic<Partial<AtomicObject<Getter, ClassType<Target, Readonlyable<Args>>>>>
+  ? ClassStatic<Partial<AtomicObject<Getter, ClassType<Target, Readonlyable<Args>>>>, Target, Readonlyable<Args>>
   : Cls extends new (...args: infer Args) => infer Target
-    ? ClassStatic<Partial<AtomicObject<Getter, ClassType<Target, Readonlyable<Args>>>>>
+    ? ClassStatic<Partial<AtomicObject<Getter, ClassType<Target, Readonlyable<Args>>>>, Target, Readonlyable<Args>>
     : never;

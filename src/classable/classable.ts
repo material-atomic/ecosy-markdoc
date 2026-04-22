@@ -144,14 +144,20 @@ class ClassableAPI {
    * @returns The resolved target class.
    */
   getTarget<
-    Getter extends string,
-    Cls extends Classable<any, any, Getter, any> = Classable<any, any, Getter, any>,
-  >(cls: Cls): ClassableTarget<Cls, Getter> {
-    if (this.isFactory<any, any, Getter, any>(cls)) {
-      return cls.target as ClassableTarget<Cls, Getter>;
+    Instance = never,
+    Getter extends string = string,
+    Cls extends { target: new (...args: any[]) => any; [k: string]: any } | (new (...args: any[]) => any) =
+      { target: new (...args: any[]) => any; [k: string]: any } | (new (...args: any[]) => any),
+  >(cls: Cls): [Instance] extends [never]
+    ? ClassableTarget<Cls, Getter> extends infer R extends (new (...args: any[]) => any)
+      ? R
+      : ClassType<any, any[]>
+    : ClassType<Instance, any[]> {
+    if (typeof cls === "object" && cls !== null && "target" in cls) {
+      return (cls as any).target;
     }
 
-    return cls as unknown as ClassableTarget<Cls, Getter>;
+    return cls as any;
   }
 
   /**

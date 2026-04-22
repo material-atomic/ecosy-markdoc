@@ -6,6 +6,8 @@ import {
   type InjectedInstances,
   type InjectMap,
 } from "./injectable";
+
+export type { InjectClassable };
 import type { ClassType } from "./types";
 import type { StaticExtended } from "./placeholder";
 
