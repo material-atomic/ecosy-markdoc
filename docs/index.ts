@@ -1,9 +1,12 @@
-import { markdoc } from "@ecosy/markdoc";
+import { markdoc, inspect, Sitemap } from "@ecosy/markdoc";
 
 const app = markdoc({
-  repo: "github:ngvcanh/ecosy-markdoc",
+  repo: "github:material-atomic/ecosy-markdoc",
   branch: "main",
-  dir: "docs/content"
+  dir: "docs/content",
+  plugins: [Sitemap],
 });
+
+inspect();
 
 export default app;

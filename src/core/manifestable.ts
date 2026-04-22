@@ -1,17 +1,26 @@
-import { RuntimeAccessor } from "./common";
-import { ConfigurationLike } from "./configuration";
+import type { ConfigurationLike } from "./configuration";
 import type { ContentContextLike } from "./content";
-import { DocumentationLike } from "./documentation";
-import { FetchableLike } from "./fetchable";
+import type { DocumentationLike } from "./documentation";
+import { Inject } from "./executor";
+import type { FetchableLike } from "./fetchable";
 import { Markdown, type MarkdownLike } from "./markdown";
+import { Revalidate } from "./revalidate";
 
 export interface ManifestLike {
-  readonly ready: Promise<ManifestResult>;
   readonly root: ManifestResult | null;
+  preload(): Promise<ManifestResult>;
   /** Check if a canonical path exists in the sitemap */
   hasPage(canonicalPath: string): boolean;
   /** Get public URL for a canonical path, or undefined */
   getUrl(canonicalPath: string): string | undefined;
+  /** Get all discovered URLs as [canonicalPath, publicUrl] entries */
+  getUrls(): [string, string][];
+  /** Get all cached manifest paths */
+  getManifests(): string[];
+  /** Get CDN URLs of all cached manifests */
+  extractManifestCdn(): string[];
+  /** Debug: get raw content + error of root manifest markdown */
+  debugRoot(): { contentUrl: string; data: string | null; result: unknown; error: string; status: string };
 }
 
 // ─── Path classification ─────────────────────────────────────────────
@@ -60,7 +69,7 @@ export interface ManifestResult {
 
 // ─── ManifestNode ────────────────────────────────────────────────────
 
-class ManifestNode {
+class ManifestNode extends Revalidate({}) {
   /**
    * Manifest MarkdownLike instances keyed by canonical path.
    * Only _manifest.md files live here — content pages do NOT.
@@ -78,25 +87,41 @@ class ManifestNode {
   static urls = new Map<string, string>();
 
   public root: ManifestResult | null = null;
-
-  /**
-   * Resolves when all _manifest.md files are loaded and
-   * ManifestNode.urls is fully populated.
-   * Server.fetch() awaits this before handling requests.
-   */
-  readonly ready: Promise<ManifestResult>;
+  private _ready: Promise<ManifestResult> | null = null;
+  private _lastPreloaded = 0;
 
   constructor(
-    private readonly documentation: DocumentationLike,
-    private readonly fetchable: FetchableLike,
-    private readonly configuration: ConfigurationLike,
+    private readonly documentation = Inject<DocumentationLike>("documentation"),
+    private readonly fetchable = Inject<FetchableLike>("fetchable"),
+    private readonly configuration = Inject<ConfigurationLike>("configuration"),
   ) {
-    // Fire immediately — no await needed from caller.
-    // Server.fetch() gates on `this.ready`.
-    this.ready = this.resolveManifest("_manifest.md").then(result => {
+    super();
+    this.revalidate = this.configuration.options.revalidate || 0;
+  }
+
+  /**
+   * Trigger manifest resolution. Must be called inside a handler
+   * (not global scope) for edge runtimes like Cloudflare Workers.
+   *
+   * Uses Revalidate.shouldRevalidate() to check cache freshness.
+   */
+  preload(): Promise<ManifestResult> {
+    if (this._ready && !this.shouldRevalidate(this._lastPreloaded)) {
+      return this._ready;
+    }
+
+    if (this._ready) {
+      // Expired — clear and re-preload
+      ManifestNode.manifests.clear();
+      ManifestNode.urls.clear();
+    }
+
+    this._lastPreloaded = Date.now();
+    this._ready = this.resolveManifest("_manifest.md").then(result => {
       this.root = result;
       return result;
     });
+    return this._ready;
   }
 
   hasPage(canonicalPath: string): boolean {
@@ -105,6 +130,38 @@ class ManifestNode {
 
   getUrl(canonicalPath: string): string | undefined {
     return ManifestNode.urls.get(canonicalPath);
+  }
+
+  getUrls(): [string, string][] {
+    return [...ManifestNode.urls.entries()];
+  }
+
+  getManifests(): string[] {
+    return [...ManifestNode.manifests.keys()];
+  }
+
+  extractManifestCdn(): string[] {
+    return [...ManifestNode.manifests.keys()].map(
+      path => this.documentation.getContentUrl({ path }),
+    );
+  }
+
+  debugRoot(): { contentUrl: string; data: string | null; result: unknown; error: string; status: string } {
+    const md = ManifestNode.manifests.get("_manifest.md");
+    const rawError = md?.error;
+    let error = "null";
+    if (rawError instanceof Error) {
+      error = `${rawError.name}: ${rawError.message}\n${rawError.stack}`;
+    } else if (rawError !== null && rawError !== undefined) {
+      error = JSON.stringify(rawError, Object.getOwnPropertyNames(rawError));
+    }
+    return {
+      contentUrl: md?.contentUrl ?? "N/A",
+      data: (md as any)?._data ?? null,
+      result: (md as any)?._result ?? null,
+      error,
+      status: (md as any)?._status ?? "unknown",
+    };
   }
 
   private getOrCreateMarkdown(canonicalPath: string): MarkdownLike {
@@ -194,12 +251,4 @@ class ManifestNode {
   }
 }
 
-export const Manifest = {
-  target: ManifestNode,
-  get: (accessor: RuntimeAccessor) =>
-    [
-      accessor.get<DocumentationLike>("documentation"),
-      accessor.get<FetchableLike>("fetchable"),
-      accessor.get<ConfigurationLike>("configuration"),
-    ] as const,
-};
+export const Manifest = ManifestNode;

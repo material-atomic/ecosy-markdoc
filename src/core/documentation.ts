@@ -1,6 +1,6 @@
 import { LiteralObject, Serialize } from "@ecosy/core";
-import { DocumentationInfo, RepositoryInfo, RuntimeAccessor } from "./common";
-import { ConfigurationLike } from "./configuration";
+import { DocumentationInfo, RepositoryInfo } from "./common";
+import { Inject } from "./executor";
 import { Repository } from "./repo";
 
 export type DispatchURLOptions = LiteralObject & RepositoryInfo & DocumentationInfo;
@@ -11,11 +11,13 @@ export interface DocumentationLike {
 }
 
 export function Documentation(options: DocumentationInfo) {
-  class DocumentationNode {
+  class DocumentationNode implements DocumentationLike {
     static readonly DEFAULT_PROVIDER = "https://cdn.jsdelivr.net/gh";
     readonly provider = options.provider || DocumentationNode.DEFAULT_PROVIDER;
-  
-    constructor(private readonly repo: Repository) {}
+
+    constructor(
+      private readonly repo = Inject<Repository>("repo"),
+    ) {}
 
     getContentUrl<Params extends LiteralObject>(params: Params = {} as Params) {
       let branch = this.repo.branch ?? (params as RepositoryInfo).branch;
@@ -34,14 +36,14 @@ export function Documentation(options: DocumentationInfo) {
         repo: `${this.repo.repo}`,
       }, params, { branch, dir });
 
-      return Serialize.interpolate(`{provider}/{repo}{branch}{dir}`, finalParams);
+      let path = (params as { path?: string }).path ?? "";
+      if (path && !path.startsWith("/")) {
+        path = `/${path}`;
+      }
+
+      return Serialize.interpolate(`{provider}/{repo}{branch}{dir}{path}`, { ...finalParams, path });
     }
   }
 
-  return {
-    target: DocumentationNode,
-    get: (accessor: RuntimeAccessor) => {
-      return [accessor.get<Repository>("repo")] as const;
-    }
-  };
+  return DocumentationNode;
 }
