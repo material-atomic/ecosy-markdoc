@@ -6,7 +6,7 @@ export class Repository {
   constructor(private readonly info: RepositoryInfo) {}
 
   get repo() {
-    return this.info.repo.replace(/^github:/, "");
+    return this.info.repo.replace(/^github\.com:/, "");
   }
 
   get branch() {
@@ -18,7 +18,7 @@ export class Repository {
   }
 
   parse(repo: string) {
-    const match = repo.match(/^(?:github:)?([^\/]+)\/([^@]+)(?:@(.+))?$/);
+    const match = repo.match(/^(?:github\.com:)?([^\/]+)\/([^@]+)(?:@(.+))?$/);
     if (!match) return null;
 
     const [, username, repository, branch] = match;

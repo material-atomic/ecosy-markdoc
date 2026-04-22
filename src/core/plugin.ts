@@ -26,11 +26,19 @@ export interface PluginRouteSchema {
 
 /**
  * Plugin registry — the schema markdoc defines for plugin capabilities.
- * Currently only `urls` is specified. Future registries may add
- * middleware, hooks, transforms, etc.
+ *
+ * - `urls`       — route definitions the plugin handles (static assets, API, etc.)
+ * - `template`   — named HTML templates (e.g. `{ root: "_template.html" }`)
+ *                  Server uses `root` template as the page layout wrapper.
+ * - `components` — inline component definitions. Keys are component names,
+ *                  values are HTML content strings with `{{ key }}` placeholders.
+ *                  Merged into the Engine alongside file-based components.
+ *                  Plugin components override file-based components of the same name.
  */
 export interface PluginRegistry {
   urls?: Record<string, PluginRouteSchema>;
+  template?: Record<string, string>;
+  components?: Record<string, string>;
 }
 
 // ─── Plugin contracts ───────────────────────────────────────────────
@@ -49,6 +57,11 @@ export interface PluginLike {
    * Handles requests matched to plugin-registered URLs.
    */
   fetch?(req: MarkdocRequest, res: MarkdocResponse): Promise<MarkdocResponse> | MarkdocResponse;
+  /**
+   * Required if `getRegistry().template` is non-empty.
+   * Returns the HTML template string for the given template name.
+   */
+  getTemplate?(name: string): string | Promise<string>;
 }
 
 export type PluginableLike = Classable<PluginLike, any[], never>;

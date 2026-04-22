@@ -41,10 +41,12 @@ function normalizePath(path: string): string {
   return path.endsWith(".md") ? path : `${path}.md`;
 }
 
-/** Convert canonical path to public URL: remove .md */
+/** Convert canonical path to public URL: remove .md, strip trailing /index → / */
 function pathToUrl(path: string): string {
   const normalized = normalizePath(path);
-  return `/${normalized.replace(/\.md$/, "")}`;
+  const raw = `/${normalized.replace(/\.md$/, "")}`;
+  // "/index" → "/", "/guides/index" → "/guides"
+  return raw.replace(/\/index$/, "/").replace(/\/+$/, "/") || "/";
 }
 
 // ─── Types ───────────────────────────────────────────────────────────

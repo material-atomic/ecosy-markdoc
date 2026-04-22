@@ -104,14 +104,6 @@ class RouterNode implements RouterLike {
       return { entry: exact, params: {} };
     }
 
-    // 1b. Root "/" → try "/index"
-    if (mdUrl.pathname === "/") {
-      const index = this.routes.get("/index");
-      if (index) {
-        return { entry: index, params: {} };
-      }
-    }
-
     // 2. Pattern match — routes containing `:param` segments
     const requestSegments = mdUrl.pathname.split("/");
 
