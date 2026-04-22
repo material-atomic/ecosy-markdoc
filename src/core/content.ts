@@ -22,6 +22,7 @@ export function Content(context: ContentContextLike) {
     protected _status: ContentStatus = "idle";
     protected _error: unknown;
     protected _data: string | null = null;
+    protected _result: unknown = null;
     protected _lastFetched: number = 0;
 
     async execute() {
@@ -34,6 +35,7 @@ export function Content(context: ContentContextLike) {
 
       try {
         const result = await context.fetchable.http.get<string | null>(context.contentUrl);
+        this._result = result;
 
         if (result.success) {
           this._data = result.data;
@@ -51,6 +53,7 @@ export function Content(context: ContentContextLike) {
 
     get status() { return this._status; }
     get data() { return this._data; }
+    get result() { return this._result; }
     get error() { return this._error; }
   };
 }

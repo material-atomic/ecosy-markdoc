@@ -6,7 +6,7 @@ export class Repository {
   constructor(private readonly info: RepositoryInfo) {}
 
   get repo() {
-    return this.info.repo;
+    return this.info.repo.replace(/^github:/, "");
   }
 
   get branch() {

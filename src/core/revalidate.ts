@@ -8,7 +8,7 @@ export interface RevalidateOptions {
  */
 export function Revalidate(options: RevalidateOptions) {
   return class RevalidateBehavior {
-    public readonly revalidate: number = options.duration || 0;
+    public revalidate: number = options.duration || 0;
     
     /**
      * Dùng để kiểm tra xem đã đến lúc phải fetch lại dữ liệu hay chưa

@@ -11,9 +11,14 @@ export interface DocumentationInfo {
   provider?: string;
 }
 
+import type { PluginableLike } from "./plugin";
+import type { RequestLifecycleOptions } from "./request-lifecycle";
+
 export interface MarkdocConfigurations extends DocumentationInfo, RepositoryInfo {
   strict?: boolean;
   revalidate?: number;
+  plugins?: PluginableLike[];
+  lifecycle?: RequestLifecycleOptions;
 }
 
 export type InjectedName =
@@ -22,6 +27,8 @@ export type InjectedName =
   | "repo"
   | "documentation"
   | "manifest"
+  | "pagable"
+  | "pluginable"
   | "server";
 
 export interface RuntimeAccessor {
