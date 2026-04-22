@@ -10,10 +10,11 @@ Plugins let you add custom routes and handlers to your Markdoc server. A plugin 
 
 ## How plugins work
 
-Every plugin implements the `PluginLike` interface with two responsibilities:
+Every plugin implements the `PluginLike` interface with three capabilities:
 
-1. **`getRegistry()`** — declares which URLs the plugin handles, with optional metadata (method, tags, description).
-2. **`fetch(req, res)`** — handles incoming requests matched to those URLs.
+1. **`getRegistry()`** — declares URLs the plugin handles, and/or named templates it provides.
+2. **`fetch(req, res)`** — handles incoming requests matched to registered URLs.
+3. **`getTemplate(name)`** — returns the HTML template string for a declared template name.
 
 The server resolves plugins on each request, merges their registered URLs into the route table alongside manifest pages, and delegates matching requests to the appropriate plugin.
 
@@ -55,7 +56,7 @@ import { HealthCheck } from "./plugins/health-check";
 import { Sitemap } from "@ecosy/markdoc";
 
 const app = markdoc({
-  repo: "github:your-org/your-docs",
+  repo: "github.com:your-org/your-docs",
   branch: "main",
   dir: "docs/content",
   plugins: [Sitemap, HealthCheck],
@@ -102,7 +103,7 @@ Global plugins respect the `revalidate` setting — when the cache expires, the 
 
 ## Plugin registry schema
 
-The `getRegistry()` method returns a `PluginRegistry` object. Currently it supports one key:
+The `getRegistry()` method returns a `PluginRegistry` object with three optional keys:
 
 **`urls`** — a record mapping URL patterns to route metadata:
 
@@ -116,6 +117,57 @@ interface PluginRouteSchema {
 ```
 
 Each key in `urls` is a URL path string. The server registers these paths in the route table. When a request matches, it calls the plugin's `fetch()` method.
+
+**`template`** — a record mapping template names to identifiers. When a plugin declares a `root` template, the server uses it as the page layout wrapper instead of the built-in default.
+
+When `template` is present, the plugin must also implement `getTemplate(name)`:
+
+```typescript
+getTemplate(name: string): string | Promise<string>;
+```
+
+The server calls `getTemplate("root")` on the first plugin that declares `template.root` in its registry. The returned HTML string is used as the page layout, with `{{ key }}` placeholders interpolated with page metadata and payload values.
+
+Reserved placeholders: `{{ body }}` (rendered page HTML), `{{ title }}` (page title from frontmatter), `{{ description }}` (page description).
+
+**`components`** — a record mapping component names to HTML content strings. Plugins can declare inline components that are merged into the Engine alongside file-based components from `_components/`. Plugin components override file-based components of the same name.
+
+```typescript
+interface PluginRegistry {
+  urls?: Record<string, PluginRouteSchema>;
+  template?: Record<string, string>;
+  components?: Record<string, string>;
+}
+```
+
+Component content uses `{{ key }}` placeholders, interpolated with store state and tag attributes — the same rules as file-based components. See the [Components](/components) page for full details on placeholder interpolation and nested resolution.
+
+Example — a plugin that provides an `alert` and a `badge` component:
+
+```typescript
+export class UIKit extends Plugin {
+  getRegistry(): PluginRegistry {
+    return {
+      components: {
+        alert: `<div class="alert alert-{{ type }}">{{ body }}</div>`,
+        badge: `<span class="badge">{{ label }}</span>`,
+      },
+    };
+  }
+}
+```
+
+Once registered, these components are available in templates and markdown layouts:
+
+```html
+<markdoc component="alert" type="warning">
+  <p>This action cannot be undone.</p>
+</markdoc>
+
+<markdoc component="badge" label="New" />
+```
+
+If a file-based component `_components/alert.html` also exists, the plugin version takes precedence. This lets plugins ship default UI components that users can still override by removing the plugin or replacing it with their own.
 
 ## Accessing the store
 
@@ -135,23 +187,7 @@ The store is a reactive state container — you can subscribe to changes if your
 
 ## Built-in plugins
 
-### Sitemap
-
-Ecosy Markdoc ships with a `Sitemap` plugin that generates XML and JSON sitemaps from the manifest's discovered URLs:
-
-```typescript
-import { Sitemap } from "@ecosy/markdoc";
-
-const app = markdoc({
-  // ...
-  plugins: [Sitemap],
-});
-```
-
-This registers two routes:
-
-- **`GET /sitemap.xml`** — standard XML sitemap for search engines
-- **`GET /sitemap.json`** — JSON array of `{ path, url }` objects for programmatic access
+Ecosy Markdoc ships with two built-in plugins: **Layout** (auto-created by the server) and **Sitemap** (opt-in). See the [Built-in Plugins](/built-in-plugins) page for full documentation on both, including how to override the Layout with a custom template.
 
 ## Plugin ID
 

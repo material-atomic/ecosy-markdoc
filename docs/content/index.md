@@ -31,7 +31,7 @@ This means:
 import markdoc from "@ecosy/markdoc";
 
 const app = markdoc({
-  repo: "github:your-org/your-docs",
+  repo: "github.com:your-org/your-docs",
   branch: "main",
   dir: "docs/content",
 });

@@ -38,7 +38,7 @@ Create your entry point. This example uses Cloudflare Workers, but any edge runt
 import markdoc from "@ecosy/markdoc";
 
 const app = markdoc({
-  repo: "your-github-username/your-repo",
+  repo: "github.com:your-github-username/your-repo",
   branch: "main",
   dir: "docs/content",
 });

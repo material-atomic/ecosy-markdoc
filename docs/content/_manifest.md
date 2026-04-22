@@ -5,5 +5,8 @@ children:
   - index
   - getting-started
   - plugins
+  - built-in-plugins
+  - components
+  - plugins/_manifest
   - guides/_manifest
 ---
