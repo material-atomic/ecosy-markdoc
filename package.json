@@ -11,6 +11,7 @@
     "vitest": "^4.1.4"
   },
   "dependencies": {
+    "@ecosy/classable": "^0.2.0",
     "@ecosy/core": "^0.3.4",
     "front-matter": "^4.0.2"
   }

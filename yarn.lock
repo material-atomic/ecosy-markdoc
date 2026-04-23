@@ -2,6 +2,11 @@
 # yarn lockfile v1
 
 
+"@ecosy/classable@^0.2.0":
+  version "0.2.0"
+  resolved "https://registry.yarnpkg.com/@ecosy/classable/-/classable-0.2.0.tgz#d3119336585886343aaebad064926d4e8490a784"
+  integrity sha512-83zHziuhKHX1VO1D6THhWrj5TI9l5szuzoccEh7xRaIXb+Qb5TSv8036BNv5u758/JQh+uDyQCV5MYEw1N/1cw==
+
 "@ecosy/core@^0.3.4":
   version "0.3.4"
   resolved "https://registry.yarnpkg.com/@ecosy/core/-/core-0.3.4.tgz#0dc2a174dec3ba5e10ed302730c58cdc373336d9"
