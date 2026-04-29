@@ -82,12 +82,12 @@ function parseInline(text: string): string {
   result = result.replace(/~~(.+?)~~/g, "<del>$1</del>");
 
   // Footnote references [^id]
-  result = result.replace(
-    /\[\^([^\]]+)\]/g,
-    '<sup><a href="#fn-$1" id="fnref-$1">$1</a></sup>',
-  );
+  result = result.replace(/\[\^([^\]]+)\]/g, '<sup><a href="#fn-$1" id="fnref-$1">$1</a></sup>');
 
-  // 4. Restore code spans
+  // 4. Restore code spans. The `\x00...` sentinels are intentional — null
+  // bytes cannot appear in user input, so they are safe placeholders that
+  // won't collide with anything the markdown source could produce.
+  // eslint-disable-next-line no-control-regex
   result = result.replace(/\x00CODE(\d+)\x00/g, (_, idx) => codeSpans[Number(idx)]);
 
   return result;
@@ -96,13 +96,15 @@ function parseInline(text: string): string {
 // ─── XSS Sanitizer ─────────────────────────────────────────────────
 
 /** Dangerous tags that should be completely removed (tag + content). */
-const STRIP_TAGS = /(<\s*(script|style|iframe|object|embed|applet|form|textarea|select|button|input|link|meta|base)\b[^>]*>[\s\S]*?<\s*\/\s*\2\s*>|<\s*(script|style|iframe|object|embed|applet|form|textarea|select|button|input|link|meta|base)\b[^>]*\/?\s*>)/gi;
+const STRIP_TAGS =
+  /(<\s*(script|style|iframe|object|embed|applet|form|textarea|select|button|input|link|meta|base)\b[^>]*>[\s\S]*?<\s*\/\s*\2\s*>|<\s*(script|style|iframe|object|embed|applet|form|textarea|select|button|input|link|meta|base)\b[^>]*\/?\s*>)/gi;
 
 /** Event handler attributes: onclick, onerror, onload, onmouseover, etc. */
 const EVENT_ATTRS = /\s+on\w+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi;
 
 /** javascript:, vbscript:, data: URI schemes in href/src/action attributes. */
-const DANGEROUS_URIS = /(href|src|action|formaction|xlink:href|data)\s*=\s*(?:"[^"]*(?:javascript|vbscript|data)\s*:[^"]*"|'[^']*(?:javascript|vbscript|data)\s*:[^']*')/gi;
+const DANGEROUS_URIS =
+  /(href|src|action|formaction|xlink:href|data)\s*=\s*(?:"[^"]*(?:javascript|vbscript|data)\s*:[^"]*"|'[^']*(?:javascript|vbscript|data)\s*:[^']*')/gi;
 
 /**
  * Sanitize HTML output to prevent XSS attacks.
@@ -287,7 +289,9 @@ function tokenize(markdown: string): BlockToken[] {
     while (
       i < lines.length &&
       lines[i].trim() !== "" &&
-      !lines[i].match(/^(#{1,6}\s|>|(`{3,}|~{3,})|(\*{3,}|-{3,}|_{3,})\s*$|\||\s*([-*+]|\d+\.)\s|\[\^)/)
+      !lines[i].match(
+        /^(#{1,6}\s|>|(`{3,}|~{3,})|(\*{3,}|-{3,}|_{3,})\s*$|\||\s*([-*+]|\d+\.)\s|\[\^)/,
+      )
     ) {
       paraLines.push(lines[i]);
       i++;
@@ -309,10 +313,7 @@ function tokenize(markdown: string): BlockToken[] {
  * Parse a list block starting at line index `start`.
  * Handles nested lists and task list items.
  */
-function parseList(
-  lines: string[],
-  start: number,
-): { token: BlockToken; nextIndex: number } {
+function parseList(lines: string[], start: number): { token: BlockToken; nextIndex: number } {
   const firstMatch = lines[start].match(/^(\s*)([-*+]|\d+\.)\s(.*)$/);
   if (!firstMatch) {
     return { token: { type: "paragraph", content: lines[start] }, nextIndex: start + 1 };
@@ -382,7 +383,7 @@ function parseList(
 function renderListItems(items: ListItem[]): string {
   return items
     .map((item) => {
-      let inner = "";
+      let inner: string;
 
       if (item.checked !== null && item.checked !== undefined) {
         const attr = item.checked ? " checked disabled" : " disabled";
@@ -487,7 +488,10 @@ function renderToken(token: BlockToken): string {
  * Converts markdown to HTML string. Receives metadata for future
  * conditional rendering (not used by default).
  */
-export const builtinParser: MarkdownParser = (markdown: string, _metadata: Record<string, unknown>): string => {
+export const builtinParser: MarkdownParser = (
+  markdown: string,
+  _metadata: Record<string, unknown>,
+): string => {
   const tokens = tokenize(markdown);
   const html = tokens.map(renderToken).join("\n");
   return sanitizeHtml(html);

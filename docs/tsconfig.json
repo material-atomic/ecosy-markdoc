@@ -1,7 +1,17 @@
 {
   "compilerOptions": {
+    "types": ["node"],
+    "moduleResolution": "bundler",
+    "esModuleInterop": true,
+    "strict": true,
     "paths": {
-      "@ecosy/markdoc": ["../src/index.ts"]
+      "@ecosy/markdoc": ["../src/index.ts"],
+      "@ecosy/markdoc/nodejs": ["../src/nodejs.ts"],
+      "@ecosy/markdoc/plugins": ["../src/plugins/index.ts"],
+      "@ecosy/markdoc/plugins/*": ["../src/plugins/*.ts"],
+      "@ecosy/markdoc/imports": ["../src/imports/index.ts"],
+      "@ecosy/markdoc/imports/*": ["../src/imports/*.ts"]
     }
-  }
+  },
+  "include": ["*.ts", "types/**/*.d.ts"]
 }

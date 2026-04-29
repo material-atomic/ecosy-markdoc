@@ -10,13 +10,16 @@ Plugins let you add custom routes and handlers to your Markdoc server. A plugin 
 
 ## How plugins work
 
-Every plugin implements the `PluginLike` interface with three capabilities:
+Every plugin implements the `PluginLike` interface. The capabilities split across declarations and lifecycle hooks:
 
-1. **`getRegistry()`** — declares URLs the plugin handles, and/or named templates it provides.
+1. **`getRegistry()`** — declares URLs the plugin handles, named templates it provides, and inline components it contributes.
 2. **`fetch(req, res)`** — handles incoming requests matched to registered URLs.
 3. **`getTemplate(name)`** — returns the HTML template string for a declared template name.
+4. **`start()`** — one-time bootstrap hook (optional). Runs once when the plugin first resolves; awaited before the request pipeline proceeds.
+5. **`beginRequest(req, res)`** — pre-routing guard hook (optional). Returns a `Response` to short-circuit, or `null` to continue.
+6. **`endRequest(req, res, response)`** — post-response transform hook (optional). Receives the Response produced by the main handler (or earlier plugins) and returns a possibly modified Response.
 
-The server resolves plugins on each request, merges their registered URLs into the route table alongside manifest pages, and delegates matching requests to the appropriate plugin.
+The server resolves plugins on each request, merges their registered URLs into the route table alongside manifest pages, awaits `start()` for any newly-instantiated plugins, runs the `beginRequest` chain, dispatches to the matching `fetch()` (or page renderer), then runs the `endRequest` chain in registration order.
 
 ## Writing a plugin
 

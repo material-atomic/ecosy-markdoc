@@ -1,6 +1,6 @@
 import type { MarkdocRequest } from "../core/request";
 import type { MarkdocResponse } from "../core/response";
-import { Plugin, type PluginRegistry } from "../core/plugin";
+import { Plugin, type PluginConstructor, type PluginRegistry } from "../core/plugin";
 
 // ─── Types ──────────────────────────────────────────────────────────
 
@@ -18,9 +18,7 @@ export interface RobotsTxtOptions {
 
 // ─── Defaults ───────────────────────────────────────────────────────
 
-const DEFAULT_RULES: RobotsRule[] = [
-  { userAgent: "*", allow: ["/"] },
-];
+const DEFAULT_RULES: RobotsRule[] = [{ userAgent: "*", allow: ["/"] }];
 
 // ─── Plugin ─────────────────────────────────────────────────────────
 
@@ -49,7 +47,7 @@ const DEFAULT_RULES: RobotsRule[] = [
  * plugins: [RobotsTxt({ sitemapUrl: false })]
  * ```
  */
-export function RobotsTxt(options: RobotsTxtOptions = {}) {
+export function RobotsTxt(options: RobotsTxtOptions = {}): PluginConstructor {
   const frozen = Object.freeze({
     rules: Object.freeze(options.rules ?? DEFAULT_RULES) as RobotsRule[],
     sitemapUrl: options.sitemapUrl,

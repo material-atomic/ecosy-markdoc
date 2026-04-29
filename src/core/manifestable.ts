@@ -1,14 +1,20 @@
+import { Inject } from "./executor";
+import { Revalidate } from "./revalidate";
+import { Markdown, type MarkdownLike } from "./markdown";
+import type { FetchableLike } from "./fetchable";
+import type { DocumentationLike } from "./documentation";
 import type { ConfigurationLike } from "./configuration";
 import type { ContentContextLike } from "./content";
-import type { DocumentationLike } from "./documentation";
-import { Inject } from "./executor";
-import type { FetchableLike } from "./fetchable";
-import { Markdown, type MarkdownLike } from "./markdown";
-import { Revalidate } from "./revalidate";
 
 export interface ManifestLike {
   readonly root: ManifestResult | null;
   preload(): Promise<ManifestResult>;
+  /**
+   * Force a fresh reload of the manifest tree from the CDN, bypassing the
+   * revalidate timer. Clears previously cached manifests and URLs, then
+   * re-runs the full preload. Returns the new `ManifestResult`.
+   */
+  reload(): Promise<ManifestResult>;
   /** Check if a canonical path exists in the sitemap */
   hasPage(canonicalPath: string): boolean;
   /** Get public URL for a canonical path, or undefined */
@@ -20,13 +26,19 @@ export interface ManifestLike {
   /** Get CDN URLs of all cached manifests */
   extractManifestCdn(): string[];
   /** Debug: get raw content + error of root manifest markdown */
-  debugRoot(): { contentUrl: string; data: string | null; result: unknown; error: string; status: string };
+  debugRoot(): {
+    contentUrl: string;
+    data: string | null;
+    result: unknown;
+    error: string;
+    status: string;
+  };
 }
 
 // ─── Path classification ─────────────────────────────────────────────
 
 const MANIFEST_PATTERN = /\/?_manifest(\.md)?$/;
-const SLUG_PATTERN = /^[a-zA-Z0-9\-\/]+(\.md)?$/;
+const SLUG_PATTERN = /^[a-zA-Z0-9\-/]+(\.md)?$/;
 
 function isManifestPath(path: string): boolean {
   return MANIFEST_PATTERN.test(path);
@@ -119,11 +131,22 @@ class ManifestNode extends Revalidate({}) {
     }
 
     this._lastPreloaded = Date.now();
-    this._ready = this.resolveManifest("_manifest.md").then(result => {
+    this._ready = this.resolveManifest("_manifest.md").then((result) => {
       this.root = result;
       return result;
     });
     return this._ready;
+  }
+
+  reload(): Promise<ManifestResult> {
+    // Drop cached manifest tree + URLs, reset readiness so the next
+    // preload() call fetches fresh content regardless of revalidate timer.
+    ManifestNode.manifests.clear();
+    ManifestNode.urls.clear();
+    this._ready = null;
+    this._lastPreloaded = 0;
+    this.root = null;
+    return this.preload();
   }
 
   hasPage(canonicalPath: string): boolean {
@@ -143,12 +166,18 @@ class ManifestNode extends Revalidate({}) {
   }
 
   extractManifestCdn(): string[] {
-    return [...ManifestNode.manifests.keys()].map(
-      path => this.documentation.getContentUrl({ path }),
+    return [...ManifestNode.manifests.keys()].map((path) =>
+      this.documentation.getContentUrl({ path }),
     );
   }
 
-  debugRoot(): { contentUrl: string; data: string | null; result: unknown; error: string; status: string } {
+  debugRoot(): {
+    contentUrl: string;
+    data: string | null;
+    result: unknown;
+    error: string;
+    status: string;
+  } {
     const md = ManifestNode.manifests.get("_manifest.md");
     const rawError = md?.error;
     let error = "null";
@@ -159,10 +188,10 @@ class ManifestNode extends Revalidate({}) {
     }
     return {
       contentUrl: md?.contentUrl ?? "N/A",
-      data: (md as any)?._data ?? null,
-      result: (md as any)?._result ?? null,
+      data: md?.data ?? null,
+      result: md?.result ?? null,
       error,
-      status: (md as any)?._status ?? "unknown",
+      status: md?.status ?? "unknown",
     };
   }
 
@@ -199,9 +228,7 @@ class ManifestNode extends Revalidate({}) {
     await mdNode.load();
 
     const metadata = mdNode.metadata;
-    const rawChildren = Array.isArray(metadata.children)
-      ? (metadata.children as string[])
-      : [];
+    const rawChildren = Array.isArray(metadata.children) ? (metadata.children as string[]) : [];
 
     // Derive directory prefix
     // "blog/_manifest.md" → "blog/"
@@ -252,5 +279,7 @@ class ManifestNode extends Revalidate({}) {
     }
   }
 }
+
+export type { ManifestNode };
 
 export const Manifest = ManifestNode;

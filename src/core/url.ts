@@ -1,4 +1,4 @@
-import { Serialize } from "@ecosy/core";
+import { Serialize } from "@ecosy/core/serialize";
 
 // ─── Types ─────────────────────────────────────────────────────────
 
@@ -98,7 +98,7 @@ export class MarkdocURL {
   isCorsAllowed(requestOrigin: string, allowlist: string[]): boolean {
     if (!requestOrigin) return false;
     if (allowlist.includes("*")) return true;
-    return allowlist.some(allowed => allowed === requestOrigin);
+    return allowlist.some((allowed) => allowed === requestOrigin);
   }
 
   /**

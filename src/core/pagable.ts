@@ -1,12 +1,12 @@
-import type { ConfigurationLike } from "./configuration";
+import { Inject } from "./executor";
+import { builtinParser } from "./parser";
+import { Markdown, type MarkdownContextLike, type MarkdownLike } from "./markdown";
+import type { FetchableLike } from "./fetchable";
 import type { ContentStatus } from "./content";
 import type { DocumentationLike } from "./documentation";
-import { Inject } from "./executor";
-import type { FetchableLike } from "./fetchable";
-import { Markdown, type MarkdownContextLike, type MarkdownLike } from "./markdown";
-import { builtinParser } from "./parser";
+import type { ConfigurationLike } from "./configuration";
 
-// ─── Types ──────���──────────────────────────────────────────────────
+// ─── Types ────────────────────────────────────────────────────────
 
 export interface PageResult {
   /** Page loaded successfully. */
@@ -42,6 +42,8 @@ class MergedMarkdown implements MarkdownLike {
   readonly contentUrl: string;
   readonly status: ContentStatus;
   readonly error: unknown;
+  readonly data: string | null;
+  readonly result: unknown;
   readonly metadata: Record<string, unknown>;
   readonly body: string;
 
@@ -49,6 +51,8 @@ class MergedMarkdown implements MarkdownLike {
     this.contentUrl = index.contentUrl;
     this.status = index.status;
     this.error = index.error;
+    this.data = index.data;
+    this.result = index.result;
     // Merge metadata — index.md takes priority
     this.metadata = { ...main.metadata, ...index.metadata };
     this.body = index.body;
@@ -159,5 +163,7 @@ class PagableNode implements PagableLike {
     return this.pages.size;
   }
 }
+
+export type { PagableNode };
 
 export const Pagable = PagableNode;

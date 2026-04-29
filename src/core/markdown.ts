@@ -1,6 +1,6 @@
 import fm from "front-matter";
+import { type MarkdownParser } from "./parser";
 import { Content, type ContentContextLike, type ContentStatus } from "./content";
-import { builtinParser, type MarkdownParser } from "./parser";
 
 export interface MarkdownContextLike extends ContentContextLike {
   /** Optional parser override. When omitted, body stays as raw markdown. */
@@ -11,12 +11,20 @@ export interface MarkdownLike {
   readonly contentUrl: string;
   readonly status: ContentStatus;
   readonly error: unknown;
+  /** Raw response body (string) once `load()` completes, else `null`. */
+  readonly data: string | null;
+  /** Full fetchable result (`{ success, data, ... }`) — for inspection. */
+  readonly result: unknown;
   readonly metadata: Record<string, unknown>;
   readonly body: string;
   load(): Promise<void>;
 }
 
-export function Markdown(context: MarkdownContextLike) {
+export interface MarkdownConstructor {
+  new (): MarkdownLike;
+}
+
+export function Markdown(context: MarkdownContextLike): MarkdownConstructor {
   const parse = context.parser ?? null;
 
   return class MarkdownNode extends Content(context) {
@@ -33,7 +41,11 @@ export function Markdown(context: MarkdownContextLike) {
       }
     }
 
-    get metadata() { return this._metadata; }
-    get body() { return this._body; }
+    get metadata() {
+      return this._metadata;
+    }
+    get body() {
+      return this._body;
+    }
   };
 }

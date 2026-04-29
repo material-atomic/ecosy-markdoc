@@ -1,4 +1,4 @@
-import { Serialize } from "@ecosy/core";
+import { Serialize } from "@ecosy/core/serialize";
 
 export interface CookieOptions {
   maxAge?: number;
@@ -17,10 +17,20 @@ export interface CookieOptions {
  * constructing raw Response objects. Markdoc converts the
  * final MarkdocResponse into a platform Response internally.
  */
+/**
+ * Body forms accepted by `MarkdocResponse`. Strings are the common case
+ * (buffered HTML/JSON/text/XML). `ReadableStream<Uint8Array>` is passed
+ * straight through to the underlying `Response`, enabling chunked
+ * responses without buffering the full body — useful when a plugin
+ * forwards an upstream fetch, renders progressively, or emits
+ * LLM-generated tokens.
+ */
+export type MarkdocResponseBody = string | ReadableStream<Uint8Array> | null;
+
 export class MarkdocResponse {
   private _status = 200;
   private _headers = new Map<string, string[]>();
-  private _body: string | null = null;
+  private _body: MarkdocResponseBody = null;
   private _poweredBy: string | false = "Markdoc";
 
   status(code: number): this {
@@ -101,6 +111,39 @@ export class MarkdocResponse {
   json(data: unknown): this {
     this._body = Serialize.JSON.stringify(data);
     this.setHeader("content-type", "application/json");
+    return this;
+  }
+
+  /**
+   * Send the body as a `ReadableStream<Uint8Array>`. The stream is
+   * passed through to the platform `Response` unchanged — the client
+   * receives bytes as they are enqueued.
+   *
+   * Use this when:
+   *   - Forwarding an upstream fetch body without buffering (proxy, CDN passthrough).
+   *   - Emitting incrementally-generated content (LLM tokens, partial HTML flush).
+   *   - Sending payloads larger than comfortable to hold in memory at once.
+   *
+   * The caller owns the stream lifecycle: once handed to this method the
+   * stream should not be read elsewhere (browsers / Node will `cancel()`
+   * it on error propagation). `contentType` defaults to
+   * `application/octet-stream` unless an explicit `content-type` header
+   * was already set.
+   *
+   * ### Error-handling caveat
+   *
+   * If the stream errors *after* the first byte has left the process,
+   * the response status line is already on the wire. The runtime cannot
+   * swap in a 5xx page at that point — it can only drop the connection.
+   * Pre-validate inputs before starting the stream whenever possible.
+   */
+  stream(body: ReadableStream<Uint8Array>, contentType?: string): this {
+    this._body = body;
+    if (contentType) {
+      this.setHeader("content-type", contentType);
+    } else if (!this._headers.has("content-type")) {
+      this.setHeader("content-type", "application/octet-stream");
+    }
     return this;
   }
 

@@ -64,6 +64,7 @@ The `markdoc()` function accepts a single options object:
 - **branch** — Branch to read from. Defaults to the repository's default branch.
 - **dir** — Subdirectory within the repo where content lives. If your markdown files are at `docs/content/`, set this to `"docs/content"`.
 - **provider** — CDN base URL. Defaults to `"https://cdn.jsdelivr.net/gh"`. You can swap this for any CDN that serves raw GitHub files.
+- **interpolate** — Template string that assembles the final content URL from the placeholders `{provider}`, `{repo}`, `{branch}`, `{dir}`, `{path}`. Defaults to `"{provider}/{repo}{branch}{dir}{path}"` (the jsDelivr shape — branch prefixed with `@`, dir and path leading `/`). Override when the CDN you point `provider` at uses a different URL layout, e.g. `raw.githubusercontent.com` which uses `/<branch>/` instead of `@<branch>`: set `interpolate: "{provider}/{repo}/{branch}{dir}{path}"`.
 - **revalidate** — Cache duration in milliseconds. When set to `0` (default), content is fetched fresh on every request. Set a value like `60000` (one minute) to cache responses.
 - **strict** — Reserved for future use. When enabled, the framework will enforce stricter validation on manifest structure and page metadata.
 

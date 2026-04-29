@@ -1,5 +1,5 @@
-import { Injectable } from "../classable/injectable";
-import { MarkdocConfigurations } from "./common";
+import { Injectable } from "@ecosy/classable/injectable";
+import type { MarkdocConfigurations } from "./common";
 import { Configuration } from "./configuration";
 import { Documentation } from "./documentation";
 import { Engine } from "./engine";
@@ -31,5 +31,5 @@ export function Runtimable(options: MarkdocConfigurations) {
     pagable: Pagable,
     pluginable: Pluginable,
     server: Server,
-  }) {}
+  }) {};
 }

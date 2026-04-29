@@ -15,7 +15,22 @@ export interface ContentContextLike {
   contentUrl: string;
 }
 
-export function Content(context: ContentContextLike) {
+export interface ContentInstance {
+  readonly contentUrl: string;
+  revalidate: number;
+  shouldRevalidate(lastFetched: number): boolean;
+  execute(): Promise<void>;
+  readonly status: ContentStatus;
+  readonly data: string | null;
+  readonly result: unknown;
+  readonly error: unknown;
+}
+
+export interface ContentConstructor {
+  new (): ContentInstance;
+}
+
+export function Content(context: ContentContextLike): ContentConstructor {
   return class ContentNode extends Revalidate({ duration: context.revalidate }) {
     public readonly contentUrl = context.contentUrl;
 
@@ -51,9 +66,17 @@ export function Content(context: ContentContextLike) {
       }
     }
 
-    get status() { return this._status; }
-    get data() { return this._data; }
-    get result() { return this._result; }
-    get error() { return this._error; }
+    get status() {
+      return this._status;
+    }
+    get data() {
+      return this._data;
+    }
+    get result() {
+      return this._result;
+    }
+    get error() {
+      return this._error;
+    }
   };
 }

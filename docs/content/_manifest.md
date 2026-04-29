@@ -7,6 +7,9 @@ children:
   - plugins
   - built-in-plugins
   - components
+  - imports
+  - examples/_manifest
   - plugins/_manifest
+  - imports/_manifest
   - guides/_manifest
 ---

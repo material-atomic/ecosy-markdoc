@@ -1,6 +1,6 @@
-import { Executable } from "../classable/executable";
-import { createInject } from "../classable/inject";
-import { Teleportability } from "../classable/teleportability";
+import { Executable } from "@ecosy/classable/executable";
+import { createInject } from "@ecosy/classable/inject";
+import { Teleportability } from "@ecosy/classable/teleportability";
 
 export const MarkdocTeleport = Teleportability({
   key: Symbol.for("@ecosy/markdoc:container"),

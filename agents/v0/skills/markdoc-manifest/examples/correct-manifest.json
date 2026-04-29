@@ -1,0 +1,29 @@
+{
+  "$comment": "Root manifest for the docs content tree. Lives at <dir>/_manifest.json inside the repo.",
+  "pages": {
+    "/": {
+      "file": "index.md",
+      "meta": {
+        "title": "Welcome to Ecosy",
+        "description": "Ecosy is a headless documentation runtime for edge environments."
+      }
+    },
+    "/about": {
+      "file": "about.md",
+      "meta": {
+        "title": "About",
+        "tags": ["intro"]
+      }
+    },
+    "/changelog": {
+      "file": "changelog.md",
+      "meta": {
+        "title": "Changelog"
+      }
+    }
+  },
+  "submanifests": {
+    "/guides": "guides/_manifest.json",
+    "/api": "api/_manifest.json"
+  }
+}

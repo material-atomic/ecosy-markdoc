@@ -5,7 +5,7 @@ import {
   type InterceptorLike,
   type FilterLike,
   type PipeLike,
-} from "../classable/lifecycle";
+} from "@ecosy/classable/lifecycle";
 import type { MarkdocRequest } from "./request";
 import type { MarkdocResponse } from "./response";
 

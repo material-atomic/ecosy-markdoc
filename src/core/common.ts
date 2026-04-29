@@ -1,3 +1,8 @@
+import type { InjectClassable, InjectedAccessor } from "@ecosy/classable/injectable";
+import type { MarkdownParser } from "./parser";
+import type { PluginableLike } from "./plugin";
+import type { RequestLifecycleOptions } from "./request-lifecycle";
+
 export interface RepositoryInfo {
   repo: string;
   branch?: string;
@@ -6,15 +11,32 @@ export interface RepositoryInfo {
 
 export interface DocumentationInfo {
   /**
+   * Base URL the runtime fetches content from.
+   *
    * @default "https://cdn.jsdelivr.net/gh"
    */
   provider?: string;
-}
 
-import type { InjectClassable, InjectedAccessor } from "../classable/injectable";
-import type { MarkdownParser } from "./parser";
-import type { PluginableLike } from "./plugin";
-import type { RequestLifecycleOptions } from "./request-lifecycle";
+  /**
+   * Template string used to assemble the full content URL from
+   * `{provider}`, `{repo}`, `{branch}`, `{dir}`, `{path}` placeholders
+   * (and anything else you pass into `getContentUrl(params)`).
+   *
+   * Leave this undefined to keep the default jsDelivr shape. Override
+   * when you point `provider` at a service that needs a different
+   * path structure — e.g. a raw GitHub CDN, a proxying worker, or a
+   * company-internal artifact host.
+   *
+   * @default "{provider}/{repo}{branch}{dir}{path}"
+   *
+   * @example
+   * // raw.githubusercontent.com doesn't use `@` for the branch ref,
+   * // it uses `/` and omits the prefix segment:
+   * //   https://raw.githubusercontent.com/<owner>/<repo>/<branch>/<path>
+   * interpolate: "{provider}/{repo}/{branch}{dir}{path}"
+   */
+  interpolate?: string;
+}
 
 /**
  * User-provided classable imports.

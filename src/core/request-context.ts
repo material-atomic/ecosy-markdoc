@@ -1,4 +1,4 @@
-import { Injectable } from "../classable/injectable";
+import { Injectable } from "@ecosy/classable/injectable";
 import { Storable } from "./storable";
 
 // ─── Store state ──────────────────────────────────────────────────
@@ -65,9 +65,7 @@ export class RequestContext extends Injectable({
     this.pathname = this.url.pathname.replace(/^\//, "");
     this.method = request.method;
     this.headers = request.headers;
-    this.canonicalPath = this.pathname.endsWith(".md")
-      ? this.pathname
-      : `${this.pathname}.md`;
+    this.canonicalPath = this.pathname.endsWith(".md") ? this.pathname : `${this.pathname}.md`;
   }
 
   static from(request: Request): RequestContext {

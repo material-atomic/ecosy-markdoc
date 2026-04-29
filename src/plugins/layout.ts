@@ -1,8 +1,14 @@
 import type { LiteralObject } from "@ecosy/core";
-import { JSONQuery } from "../json/json-query";
+import { JSONQuery } from "@ecosy/json/json-query";
 import type { MarkdocRequest } from "../core/request";
 import type { MarkdocResponse } from "../core/response";
-import { Plugin, type PluginRegistry, type PluginRouteSchema, type StoreLike } from "../core/plugin";
+import {
+  Plugin,
+  type PluginConstructor,
+  type PluginRegistry,
+  type PluginRouteSchema,
+  type StoreLike,
+} from "../core/plugin";
 
 // ─── Types ──────────────────────────────────────────────────────────
 
@@ -167,7 +173,18 @@ export interface LayoutConfig {
  * })
  * ```
  */
-export function Layout(config: LayoutConfig) {
+/**
+ * Constructor shape for classes returned by `Layout()`. Carries the
+ * `__layout` brand + frozen config as statics so the server can detect
+ * layout plugins and pull per-plugin config from `ctor.layout` without
+ * casting.
+ */
+export interface LayoutPluginConstructor extends PluginConstructor {
+  readonly __layout: true;
+  readonly layout: Readonly<LayoutConfig>;
+}
+
+export function Layout(config: LayoutConfig): LayoutPluginConstructor {
   const frozen: Readonly<LayoutConfig> = Object.freeze({
     ...config,
     urls: config.urls ? Object.freeze({ ...config.urls }) : undefined,
@@ -279,7 +296,9 @@ export function hasTemplate(plugin: {
   getTemplate(name: string): string | Promise<string>;
 } {
   const registry = plugin.getRegistry();
-  return !!registry.template && "root" in registry.template && typeof plugin.getTemplate === "function";
+  return (
+    !!registry.template && "root" in registry.template && typeof plugin.getTemplate === "function"
+  );
 }
 
 /**
@@ -313,13 +332,10 @@ export function resolvePayload(
  * Unmatched placeholders are left as-is (useful for debugging).
  */
 export function interpolate(template: string, vars: Record<string, unknown>): string {
-  return template.replace(
-    /\{\{\s*([\w][\w.-]*)\s*\}\}/g,
-    (match, expr) => {
-      const value = JSONQuery.evaluate(vars, expr);
-      return value !== undefined && value !== null ? String(value) : match;
-    },
-  );
+  return template.replace(/\{\{\s*([\w][\w.-]*)\s*\}\}/g, (match, expr) => {
+    const value = JSONQuery.evaluate(vars, expr);
+    return value !== undefined && value !== null ? String(value) : match;
+  });
 }
 
 /** Content-Type map for common static assets. */

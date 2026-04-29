@@ -1,21 +1,21 @@
-import { Injectable } from "../classable/injectable";
-import type { ConfigurationLike } from "./configuration";
-import type { DocumentationLike } from "./documentation";
-import { Executor, Inject } from "./executor";
-import type { EngineLike } from "./engine";
-import type { FetchableLike } from "./fetchable";
 import fm from "front-matter";
-import { Layout, hasLoadPaths, interpolate, resolvePayload } from "../plugins/layout";
-import { MarkdocRequest } from "./request";
-import { MarkdocResponse } from "./response";
-import type { ManifestLike } from "./manifestable";
-import type { PagableLike } from "./pagable";
-import type { PluginLike, PluginableLikeLike } from "./plugin";
-import { sanitizeHtml } from "./parser";
-import { RequestContext, type HeadState, type BodyState, type ScopeState } from "./request-context";
-import { RequestLifecycle, type RequestLifecycleOptions } from "./request-lifecycle";
 import { Router } from "./router";
 import { Storable } from "./storable";
+import { Injectable } from "@ecosy/classable/injectable";
+import { sanitizeHtml } from "./parser";
+import { MarkdocRequest } from "./request";
+import { MarkdocResponse } from "./response";
+import { Executor, Inject } from "./executor";
+import { RequestLifecycle, type RequestLifecycleOptions } from "./request-lifecycle";
+import { Layout, hasLoadPaths, interpolate, resolvePayload } from "../plugins/layout";
+import { RequestContext, type HeadState, type BodyState, type ScopeState } from "./request-context";
+import type { EngineLike } from "./engine";
+import type { PagableLike } from "./pagable";
+import type { ManifestLike } from "./manifestable";
+import type { FetchableLike } from "./fetchable";
+import type { ConfigurationLike } from "./configuration";
+import type { DocumentationLike } from "./documentation";
+import type { PluginLike, PluginableLikeLike } from "./plugin";
 
 class ServerNode extends Injectable({
   store: { target: Storable(), get: () => [{}] },
@@ -59,19 +59,16 @@ class ServerNode extends Injectable({
       const message = err instanceof Error ? err.stack || err.message : String(err);
       return new Response(
         `<html><body style="font-family:monospace;padding:2rem;background:#1a1a2e;color:#e94560">` +
-        `<h1>500 — Internal Server Error</h1>` +
-        `<pre style="background:#16213e;padding:1rem;border-radius:8px;overflow-x:auto;color:#eee">${this.escapeHtml(message)}</pre>` +
-        `</body></html>`,
+          `<h1>500 — Internal Server Error</h1>` +
+          `<pre style="background:#16213e;padding:1rem;border-radius:8px;overflow-x:auto;color:#eee">${this.escapeHtml(message)}</pre>` +
+          `</body></html>`,
         { status: 500, headers: { "Content-Type": "text/html" } },
       );
     }
   }
 
   private escapeHtml(str: string): string {
-    return str
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;");
+    return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
   }
 
   /**
@@ -193,9 +190,11 @@ class ServerNode extends Injectable({
 
     // Auto-generate from top-level title/description
     if (title) tags.push(`<title>${this.escapeHtml(title)}</title>`);
-    if (description) tags.push(`<meta name="description" content="${this.escapeHtml(description)}">`);
+    if (description)
+      tags.push(`<meta name="description" content="${this.escapeHtml(description)}">`);
     if (title) tags.push(`<meta property="og:title" content="${this.escapeHtml(title)}">`);
-    if (description) tags.push(`<meta property="og:description" content="${this.escapeHtml(description)}">`);
+    if (description)
+      tags.push(`<meta property="og:description" content="${this.escapeHtml(description)}">`);
 
     // Custom metadata from frontmatter `metadata` key
     const custom = meta.metadata as Record<string, unknown> | undefined;
@@ -205,7 +204,10 @@ class ServerNode extends Injectable({
         let value = String(rawValue);
 
         // Resolve relative image URLs for og:image, twitter:image
-        if ((key === "og:image" || key === "twitter:image") && !/^(https?:\/\/|\/\/|data:)/i.test(value)) {
+        if (
+          (key === "og:image" || key === "twitter:image") &&
+          !/^(https?:\/\/|\/\/|data:)/i.test(value)
+        ) {
           value = this.resolveContentUrl(value, pagePath);
         }
 
@@ -254,7 +256,10 @@ class ServerNode extends Injectable({
     // Read frozen payload from static class
     const ctor = plugin.constructor as unknown as Record<string, unknown>;
     const layoutConfig = ctor.layout as { payload?: unknown } | undefined;
-    const payload = resolvePayload(layoutConfig?.payload as any, this.store);
+    const payload = resolvePayload(
+      layoutConfig?.payload as Parameters<typeof resolvePayload>[0],
+      this.store,
+    );
 
     // Resolve images before sanitizing
     const resolvedBody = this.resolveImageUrls(rawBody, routePath);
@@ -318,14 +323,11 @@ class ServerNode extends Injectable({
    * Skips absolute URLs (http/https/data/protocol-relative).
    */
   private resolveImageUrls(html: string, pagePath: string): string {
-    return html.replace(
-      /<img\s([^>]*?)src="([^"]+)"([^>]*?)>/gi,
-      (match, before, src, after) => {
-        if (/^(https?:\/\/|\/\/|data:)/i.test(src)) return match;
-        const resolved = this.resolveContentUrl(src, pagePath);
-        return `<img ${before}src="${resolved}"${after}>`;
-      },
-    );
+    return html.replace(/<img\s([^>]*?)src="([^"]+)"([^>]*?)>/gi, (match, before, src, after) => {
+      if (/^(https?:\/\/|\/\/|data:)/i.test(src)) return match;
+      const resolved = this.resolveContentUrl(src, pagePath);
+      return `<img ${before}src="${resolved}"${after}>`;
+    });
   }
 
   private async handleRequest(request: Request): Promise<Response> {
@@ -336,8 +338,11 @@ class ServerNode extends Injectable({
       this.loadGlobalMetadata(),
     ]);
 
-    // Resolve plugins and build route table
-    const plugins = this.pluginable.resolve(ctx, this.store);
+    // Resolve plugins and build route table.
+    // Awaited so newly-instantiated plugins (global on first cache,
+    // transient on every request) have their `start()` hook complete
+    // before the request pipeline proceeds.
+    const plugins = await this.pluginable.resolve(ctx, this.store);
     this.router.build(this.manifest, plugins);
 
     // Merge inline components from plugin registries into the Engine
@@ -353,14 +358,26 @@ class ServerNode extends Injectable({
     if (url.pathname.startsWith("/_debug/")) {
       const debugPath = url.pathname.replace("/_debug/", "");
       const outcome = await this.pagable.resolve(debugPath || "index");
-      return new Response(JSON.stringify({
-        path: debugPath,
-        outcome: outcome.ok
-          ? { ok: true, metadata: outcome.page.metadata, body: outcome.page.body, contentUrl: outcome.page.contentUrl }
-          : { ok: false, error: String(outcome.error) },
-      }, null, 2), {
-        headers: { "Content-Type": "application/json; charset=utf-8" },
-      });
+      return new Response(
+        JSON.stringify(
+          {
+            path: debugPath,
+            outcome: outcome.ok
+              ? {
+                  ok: true,
+                  metadata: outcome.page.metadata,
+                  body: outcome.page.body,
+                  contentUrl: outcome.page.contentUrl,
+                }
+              : { ok: false, error: String(outcome.error) },
+          },
+          null,
+          2,
+        ),
+        {
+          headers: { "Content-Type": "application/json; charset=utf-8" },
+        },
+      );
     }
 
     if (url.pathname === "/_routes") {
@@ -373,20 +390,38 @@ class ServerNode extends Injectable({
           plugin: entry.plugin?.id ?? null,
         });
       }
-      return new Response(JSON.stringify({
-        routes,
-        manifestUrls: this.manifest.getUrls(),
-        manifestPaths: this.manifest.getManifests(),
-        manifestCdn: this.manifest.extractManifestCdn(),
-        manifestRoot: this.manifest.debugRoot(),
-      }, null, 2), {
-        headers: { "Content-Type": "application/json" },
-      });
+      return new Response(
+        JSON.stringify(
+          {
+            routes,
+            manifestUrls: this.manifest.getUrls(),
+            manifestPaths: this.manifest.getManifests(),
+            manifestCdn: this.manifest.extractManifestCdn(),
+            manifestRoot: this.manifest.debugRoot(),
+          },
+          null,
+          2,
+        ),
+        {
+          headers: { "Content-Type": "application/json" },
+        },
+      );
     }
 
     // Create controlled request/response
     const req = MarkdocRequest.from(request);
     const res = new MarkdocResponse();
+
+    // Pre-routing hooks — plugins can short-circuit the response before routing.
+    // Used for cross-cutting concerns: auth, rate-limit, CORS preflight,
+    // geo-blocking, maintenance mode. Invoked in plugin registration order;
+    // the first plugin returning a non-null/undefined value halts the chain
+    // and its response is returned directly.
+    for (const plugin of plugins) {
+      if (typeof plugin.beginRequest !== "function") continue;
+      const earlyResponse = await plugin.beginRequest(req, res);
+      if (earlyResponse) return earlyResponse;
+    }
 
     // Core handler — route matching + content/plugin delegation
     const handler = async (
@@ -396,12 +431,14 @@ class ServerNode extends Injectable({
       const matched = this.router.match(mdReq.mdUrl);
 
       if (!matched) {
-        return mdRes.status(404).html(
-          `<html><body style="font-family:sans-serif;padding:2rem">` +
-          `<h1>404 — Not Found</h1>` +
-          `<p>No route matches <code>${this.escapeHtml(mdReq.pathname)}</code></p>` +
-          `</body></html>`,
-        );
+        return mdRes
+          .status(404)
+          .html(
+            `<html><body style="font-family:sans-serif;padding:2rem">` +
+              `<h1>404 — Not Found</h1>` +
+              `<p>No route matches <code>${this.escapeHtml(mdReq.pathname)}</code></p>` +
+              `</body></html>`,
+          );
       }
 
       const { entry: route, params } = matched;
@@ -416,12 +453,14 @@ class ServerNode extends Injectable({
       const outcome = await this.pagable.resolve(route.path);
 
       if (!outcome.ok) {
-        return mdRes.status(500).html(
-          `<html><body style="font-family:monospace;padding:2rem;background:#1a1a2e;color:#e94560">` +
-          `<h1>500 — Content Error</h1>` +
-          `<pre style="background:#16213e;padding:1rem;border-radius:8px;overflow-x:auto;color:#eee">${this.escapeHtml(String(outcome.error))}</pre>` +
-          `</body></html>`,
-        );
+        return mdRes
+          .status(500)
+          .html(
+            `<html><body style="font-family:monospace;padding:2rem;background:#1a1a2e;color:#e94560">` +
+              `<h1>500 — Content Error</h1>` +
+              `<pre style="background:#16213e;padding:1rem;border-radius:8px;overflow-x:auto;color:#eee">${this.escapeHtml(String(outcome.error))}</pre>` +
+              `</body></html>`,
+          );
       }
 
       // Always render through Layout plugin (built-in or user override)
@@ -436,12 +475,21 @@ class ServerNode extends Injectable({
 
     // Execute through lifecycle pipeline via Executor:
     // Guards → Pipes → Interceptors → execute(req, res, handler) → Filters
-    const result = await Executor.lifecycle(
-      this.lifecycle.Handler as any,
-      [req, res, handler],
-    );
-    return ((result as MarkdocResponse) ?? res).toResponse();
+    const result = await Executor.lifecycle(this.lifecycle.Handler, [req, res, handler]);
+    let response = ((result as MarkdocResponse) ?? res).toResponse();
+
+    // Post-response hooks — plugins can inject/modify headers, transform body,
+    // add metrics, etc. Chain runs in registered order; each plugin receives
+    // the previous output.
+    for (const plugin of plugins) {
+      if (typeof plugin.endRequest !== "function") continue;
+      response = await plugin.endRequest(req, res, response);
+    }
+
+    return response;
   }
 }
+
+export type { ServerNode };
 
 export const Server = ServerNode;

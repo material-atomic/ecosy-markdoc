@@ -1,0 +1,26 @@
+{
+  "$comment": "Sub-manifest for /guides. Lives at <dir>/guides/_manifest.json. Keys are relative to the prefix the root manifest assigned (/guides).",
+  "pages": {
+    "/intro": {
+      "file": "intro.md",
+      "meta": {
+        "title": "Getting started",
+        "tags": ["intro", "setup"]
+      }
+    },
+    "/plugins": {
+      "file": "plugins.md",
+      "meta": {
+        "title": "Writing your first plugin",
+        "tags": ["plugin", "advanced"]
+      }
+    },
+    "/deployment": {
+      "file": "deployment.md",
+      "meta": {
+        "title": "Deploying to the edge",
+        "tags": ["ops"]
+      }
+    }
+  }
+}

@@ -28,15 +28,11 @@ export class Sitemap extends Plugin {
       return res.xml(this.buildXml(pages));
     }
 
-    return res.json(
-      pages.map(([path, url]) => ({ path, url })),
-    );
+    return res.json(pages.map(([path, url]) => ({ path, url })));
   }
 
   private buildXml(pages: [string, string][]): string {
-    const entries = pages
-      .map(([, url]) => `  <url>\n    <loc>${url}</loc>\n  </url>`)
-      .join("\n");
+    const entries = pages.map(([, url]) => `  <url>\n    <loc>${url}</loc>\n  </url>`).join("\n");
 
     return [
       `<?xml version="1.0" encoding="UTF-8"?>`,

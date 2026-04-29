@@ -1,0 +1,48 @@
+<!--
+  ✅ Correct: Sample template file for `Layout({ path: { name: "_template.html", parser: "root" } })`.
+
+  Lives on the CDN at <dir>/_template.html. Interpolation uses the same
+  `{{ key }}` / `{{ dot.path }}` syntax as components.
+
+  Required slot: {{ body.main }} — where the rendered page content is inserted.
+
+  Common slots:
+    {{ scope.title }}        page title (from front-matter or manifest meta)
+    {{ scope.description }}  page description
+    {{ head.metadata }}      <meta> tags computed from scope
+    {{ head.links }}         <link> tags (canonical, feeds, alternates)
+    {{ head.style }}         inline CSS contributed by plugins
+    {{ head.scripts }}       <script> tags from plugins (deferred/module)
+    {{ body.scripts }}       closing-body scripts from plugins
+    {{ siteName }}           payload value (from Layout's `payload` option)
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{{ scope.title }}</title>
+  <meta name="description" content="{{ scope.description }}" />
+  {{ head.metadata }}
+  {{ head.links }}
+  <link rel="stylesheet" href="/assets/site.css" />
+  {{ head.style }}
+  {{ head.scripts }}
+</head>
+<body>
+  <header class="site-header">
+    <a class="site-logo" href="/">{{ siteName }}</a>
+    <nav class="site-nav" aria-label="Primary"></nav>
+  </header>
+
+  <main class="container">
+    {{ body.main }}
+  </main>
+
+  <footer class="site-footer">
+    <small>&copy; {{ year }} {{ siteName }}</small>
+  </footer>
+
+  {{ body.scripts }}
+</body>
+</html>

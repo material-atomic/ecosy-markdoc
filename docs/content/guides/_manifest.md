@@ -2,10 +2,12 @@
 title: Guides
 description: In-depth guides for working with Ecosy Markdoc
 children:
-  - writing-markdown
-  - organizing-content
-  - markdown-syntax
-  - imports
-  - metadata
+  - authentication
   - images
+  - markdown-syntax
+  - metadata
+  - nodejs
+  - organizing-content
+  - redirect
+  - writing-markdown
 ---

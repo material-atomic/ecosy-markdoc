@@ -1,0 +1,18 @@
+<!--
+  ✅ Correct: File-based component at <dir>/_components/card.html
+
+  Placeholders:
+    {{ title }}       — the `title` attribute of the tag
+    {{ variant }}     — optional variant (e.g. "info", "warning")
+    {{ body }}        — the tag body (already rendered from child markdown)
+
+  Missing attributes are left literal so typos surface in the output.
+-->
+<article class="card card--{{ variant }}">
+  <header class="card__header">
+    <h3>{{ title }}</h3>
+  </header>
+  <div class="card__body">
+    {{ body }}
+  </div>
+</article>

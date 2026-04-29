@@ -11,6 +11,10 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<!-- highlight.js theme for syntax-highlighted code blocks (light theme). -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11.11.1/styles/github.min.css">
+<!-- KaTeX CSS — required to display server-rendered math. -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.22/dist/katex.min.css" crossorigin="anonymous">
 {{ head.scripts }}
 <style>
   :root {
@@ -35,6 +39,8 @@
     --sidebar-width: 260px;
     --nav-height: 56px;
     --content-max-width: 740px;
+    --layout-max-width: 1200px;
+    --layout-gap: 2.5rem;
     --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     --font-mono: "JetBrains Mono", "SF Mono", "Fira Code", Menlo, Consolas, monospace;
   }
@@ -113,25 +119,31 @@
 
   /* ── Layout ──────────────────────────────── */
 
+  /* Centered flex container — sidebar and content share a max-width block
+     that sits in the middle of the viewport on large screens. Only the
+     nav stays fixed to the top of the window. */
   .doc-layout {
     display: flex;
-    padding-top: var(--nav-height);
+    gap: var(--layout-gap);
+    max-width: var(--layout-max-width);
+    margin: 0 auto;
+    padding: var(--nav-height) 1.5rem 0;
     min-height: 100vh;
   }
 
   /* ── Sidebar ─────────────────────────────── */
 
   .doc-sidebar {
-    position: fixed;
-    top: var(--nav-height);
-    left: 0;
-    bottom: 0;
     width: var(--sidebar-width);
+    flex-shrink: 0;
     background: var(--color-bg);
     border-right: 1px solid var(--color-border);
+    padding: 2rem 0;
+    align-self: flex-start;
+    position: sticky;
+    top: var(--nav-height);
+    max-height: calc(100vh - var(--nav-height));
     overflow-y: auto;
-    padding: 1.5rem 0;
-    z-index: 50;
   }
 
   .doc-sidebar::-webkit-scrollbar { width: 4px; }
@@ -179,17 +191,16 @@
 
   .doc-main {
     flex: 1;
-    margin-left: var(--sidebar-width);
     display: flex;
     flex-direction: column;
+    min-width: 0; /* prevent flex children from overflowing */
     min-height: calc(100vh - var(--nav-height));
   }
 
   .doc-content {
     flex: 1;
     max-width: var(--content-max-width);
-    margin: 0 auto;
-    padding: 2.5rem 3rem 4rem;
+    padding: 2rem 0 4rem;
     width: 100%;
   }
 
@@ -344,12 +355,82 @@
     border: 1px solid var(--color-border);
   }
 
+  /* ── GFM alerts ──────────────────────────── */
+
+  .prose .alert {
+    margin: 1.25em 0;
+    padding: 0.85rem 1rem 0.85rem 1.1rem;
+    border-left: 3px solid var(--color-text-secondary);
+    background: var(--color-bg-subtle);
+    border-radius: 0 6px 6px 0;
+  }
+  .prose .alert > p:first-child { margin-top: 0; }
+  .prose .alert > p:last-child { margin-bottom: 0; }
+  .prose .alert-note     { border-left-color: var(--color-primary);      background: var(--color-primary-bg); }
+  .prose .alert-tip      { border-left-color: var(--color-accent-green); background: #ecfdf5; }
+  .prose .alert-important{ border-left-color: #7c3aed;                    background: #f5f3ff; }
+  .prose .alert-warning  { border-left-color: var(--color-accent-amber); background: #fffbeb; }
+  .prose .alert-caution  { border-left-color: var(--color-accent-red);   background: #fef2f2; }
+
+  /* ── Task lists ──────────────────────────── */
+
+  .prose .task-list-item { list-style: none; margin-left: -1.25em; }
+  .prose .task-list-item input[type="checkbox"] { margin-right: 0.4em; }
+
+  /* ── Mermaid ─────────────────────────────── */
+
+  .prose pre.mermaid {
+    background: transparent;
+    color: inherit;
+    border: 1px solid var(--color-border);
+    padding: 1rem;
+    text-align: center;
+    overflow-x: auto;
+  }
+
+  /* ── KaTeX display math ──────────────────── */
+
+  .prose .katex-display {
+    margin: 1.25em 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+  }
+
+  /* ── Heading anchors ─────────────────────── */
+
+  .prose h1, .prose h2, .prose h3, .prose h4, .prose h5, .prose h6 {
+    scroll-margin-top: calc(var(--nav-height) + 1rem);
+  }
+  .prose .doc-anchor {
+    text-decoration: none;
+    color: var(--color-text-muted);
+    opacity: 0;
+    margin-right: 0.25em;
+    transition: opacity 0.15s;
+  }
+  .prose h1:hover .doc-anchor,
+  .prose h2:hover .doc-anchor,
+  .prose h3:hover .doc-anchor,
+  .prose h4:hover .doc-anchor,
+  .prose h5:hover .doc-anchor,
+  .prose h6:hover .doc-anchor { opacity: 1; }
+
+  /* ── Footnotes ───────────────────────────── */
+
+  .prose .footnotes {
+    margin-top: 3rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--color-border);
+    font-size: 0.875em;
+    color: var(--color-text-secondary);
+  }
+
   /* ── Footer ──────────────────────────────── */
 
   .doc-footer {
     max-width: var(--content-max-width);
-    margin: auto auto 0;
-    padding: 1.5rem 3rem 2rem;
+    margin: auto 0 0;
+    padding: 1.5rem 0 2rem;
     border-top: 1px solid var(--color-border);
     width: 100%;
   }
@@ -374,11 +455,24 @@
   /* ── Responsive ──────────────────────────── */
 
   @media (max-width: 860px) {
+    /* On mobile the sidebar slides in from the left as an overlay, so we
+       drop it out of the centered flex layout and pin it fixed. */
+    .doc-layout {
+      padding: var(--nav-height) 1.25rem 0;
+      gap: 0;
+    }
+
     .doc-sidebar {
+      position: fixed;
+      top: var(--nav-height);
+      left: 0;
+      bottom: 0;
+      max-height: none;
       transform: translateX(-100%);
       transition: transform 0.25s ease;
       background: var(--color-bg);
       box-shadow: none;
+      z-index: 50;
     }
 
     .doc-sidebar.open {
@@ -386,11 +480,9 @@
       box-shadow: 4px 0 24px rgba(0, 0, 0, 0.08);
     }
 
-    .doc-main { margin-left: 0; }
+    .doc-content { padding: 1.5rem 0 3rem; }
 
-    .doc-content { padding: 2rem 1.25rem 3rem; }
-
-    .doc-footer { padding: 1.5rem 1.25rem 2rem; }
+    .doc-footer { padding: 1.5rem 0 2rem; }
 
     .doc-nav-hamburger { display: block; }
     .doc-nav-links { display: none; }
@@ -449,6 +541,12 @@
     overlay.addEventListener('click', toggle);
   }
 })();
+</script>
+<!-- Mermaid — renders `<pre class="mermaid">…</pre>` blocks emitted by MarkdownViewer. -->
+<script type="module">
+  import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11.5.0/dist/mermaid.esm.min.mjs";
+  mermaid.initialize({ startOnLoad: false, theme: "default", securityLevel: "strict" });
+  mermaid.run({ querySelector: "pre.mermaid" });
 </script>
 {{ body.scripts }}
 </body>

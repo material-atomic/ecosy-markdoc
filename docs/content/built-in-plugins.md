@@ -6,7 +6,7 @@ order: 4
 
 # Built-in Plugins
 
-Ecosy Markdoc ships with three built-in plugins: **Layout**, **Sitemap**, and **RobotsTxt**. Layout is created automatically by the server — you never register it yourself. Sitemap and RobotsTxt are opt-in and must be added to the `plugins` array.
+Ecosy Markdoc ships with seven built-in plugins: **Layout**, **Sitemap**, **RobotsTxt**, **Authen**, **Cors**, **RSSFeed**, and **Markdash**. Layout is created automatically by the server — you never register it yourself. The other six are opt-in and must be added to the `plugins` array.
 
 ## Layout
 
@@ -222,3 +222,238 @@ RobotsTxt({ sitemapUrl: [
 // Disable sitemap line entirely
 RobotsTxt({ sitemapUrl: false })
 ```
+
+## Authen
+
+The Authen plugin gates every request behind JWT cookie authentication. Unauthenticated requests either redirect to a login URL or render an inline login UI, depending on how you configure it.
+
+```typescript
+import { Authen } from "@ecosy/markdoc";
+import * as jose from "jose";
+
+const SECRET = new TextEncoder().encode(process.env.AUTH_SECRET!);
+
+const app = markdoc({
+  repo: "github.com:your-org/your-docs",
+  dir: "docs/content",
+  plugins: [
+    Authen({
+      cookieName: "ecosy_session",
+      verify: async (jwt) => {
+        try {
+          const { payload } = await jose.jwtVerify(jwt, SECRET);
+          return !!payload.sub;
+        } catch {
+          return false;
+        }
+      },
+      onUnauthorized: "/login",
+      publicPaths: ["/login", "/register", "/healthz"],
+    }),
+  ],
+});
+```
+
+Authen is a **global plugin** — one instance shared across requests. It hooks into the `beginRequest` lifecycle so it runs before any route matches. The plugin does not register URLs itself; it simply intercepts every request and either allows it or short-circuits with an unauthorized response.
+
+### How it works
+
+1. If `req.pathname` is in `publicPaths`, skip auth entirely.
+2. Read `req.cookie(cookieName)`. If missing → unauthorized.
+3. Call `verify(jwt, req)`. If it returns truthy → allow. Falsy or throws → unauthorized.
+4. On unauthorized, generate a response based on `onUnauthorized`:
+   - **string** path → 302 redirect to that URL
+   - **render config** → inline HTML (default 401)
+   - **function** → custom handler that returns any `Response`
+
+### Unauthorized strategies
+
+```typescript
+// Redirect
+Authen({ onUnauthorized: "/login", ... })
+
+// Inline render
+Authen({
+  onUnauthorized: {
+    mode: "render",
+    template: "<html>...login form...</html>",
+  },
+  ...
+})
+
+// Custom handler
+Authen({
+  onUnauthorized: async (req, res) => new Response(JSON.stringify({ error: "unauthorized" }), {
+    status: 401,
+    headers: { "Content-Type": "application/json" },
+  }),
+  ...
+})
+```
+
+### Developer responsibilities
+
+Authen blocks; it does not implement the login flow. You still need:
+
+- A `/login` page or endpoint (added to `publicPaths`) that collects credentials
+- Your own endpoint that verifies credentials, signs a JWT, and sets the cookie via `Set-Cookie`
+- The `verify` function that unpacks and validates the JWT per request
+
+See the [Authen plugin reference](/plugins/authen) for configuration types, a full login endpoint example, and notes on integrating with `jose`/`jsonwebtoken`.
+
+## Cors
+
+The Cors plugin handles CORS preflight requests and injects `Access-Control-Allow-*` headers on regular responses. It spans both lifecycle hooks — `beginRequest` for preflight short-circuit, `endRequest` for header injection on normal responses.
+
+```typescript
+import { Cors } from "@ecosy/markdoc";
+
+const app = markdoc({
+  repo: "github.com:your-org/your-docs",
+  dir: "docs/content",
+  plugins: [
+    Cors({
+      origin: ["https://app.example.com"],
+      credentials: true,
+      exposeHeaders: ["X-Total-Count"],
+    }),
+  ],
+});
+```
+
+### Origin policies
+
+Three forms accepted:
+
+- `"*"` — any origin (incompatible with `credentials: true`)
+- `string[]` — exact allowlist
+- `(origin, req) => boolean` — dynamic predicate
+
+```typescript
+Cors({ origin: "*" })                              // public API
+Cors({ origin: ["https://a.example.com"] })       // exact
+Cors({ origin: (o) => /\.trusted\.io$/.test(o) }) // predicate
+```
+
+### Composition order
+
+Always register `Cors` before authentication or rate-limiting plugins:
+
+```typescript
+plugins: [
+  Cors({ ... }),       // preflight must bypass auth
+  Authen({ ... }),
+]
+```
+
+Otherwise `Authen` blocks `OPTIONS` preflight requests as unauthenticated and CORS fails.
+
+See the [Cors plugin reference](/plugins/cors) for full configuration including methods, headers, maxAge, and expose headers.
+
+## RSSFeed
+
+The RSSFeed plugin registers a feed endpoint at a configurable path and renders RSS 2.0 or Atom 1.0 XML. You supply the items; the plugin handles channel metadata, date formatting, XML escaping, and CDATA wrapping.
+
+```typescript
+import { RSSFeed } from "@ecosy/markdoc";
+
+const app = markdoc({
+  repo: "github.com:your-org/your-docs",
+  dir: "docs/content",
+  plugins: [
+    RSSFeed({
+      title: "Ecosy Journey",
+      description: "Build journey of the Ecosy framework",
+      link: "https://ecosy.dev",
+      items: async (req) => {
+        const posts = await loadPosts();
+        return posts.map((p) => ({
+          title: p.title,
+          link: `${req.mdUrl.origin}/posts/${p.slug}`,
+          description: p.excerpt,
+          content: p.html,
+          pubDate: p.createdAt,
+          author: p.author,
+          categories: p.tags,
+        }));
+      },
+    }),
+  ],
+});
+```
+
+### Formats
+
+- `format: "rss"` (default) — RSS 2.0, served as `application/rss+xml`. Widest reader compatibility.
+- `format: "atom"` — Atom 1.0, served as `application/atom+xml`. Richer semantics (explicit `<updated>` vs `<published>`).
+
+### Items source
+
+Either a static array (frozen at plugin creation) or a factory that resolves per request. The factory receives `MarkdocRequest` for dynamic URLs, query params, etc.
+
+### Customization
+
+```typescript
+RSSFeed({
+  path: "/atom.xml",            // default "/feed.xml"
+  format: "atom",
+  language: "vi",
+  copyright: "© 2026 S3TECH",
+  image: { url: "https://.../logo.png" },
+  maxItems: 50,                 // default 20
+  // ...
+})
+```
+
+See the [RSSFeed plugin reference](/plugins/rss-feed) for the full item schema, format comparison, and composition patterns.
+
+## Markdash
+
+The Markdash plugin exposes a developer dashboard at a configurable URL where you can invalidate Markdoc caches (manifest, engine components, page cache) from the browser. Useful during local development or on staging environments.
+
+```typescript
+import { Markdash, Authen } from "@ecosy/markdoc";
+
+const app = markdoc({
+  repo: "github.com:your-org/your-docs",
+  dir: "docs/content",
+  plugins: [
+    Authen({ verify, onUnauthorized: "/login", publicPaths: ["/login"] }),
+    Markdash({ prefix: "_ops/dash" }),  // mounted at /_ops/dash
+  ],
+});
+```
+
+### Prefix
+
+The `prefix` option scopes every Markdash route. Default: `"_markdash"` → dashboard at `/_markdash`. Leading/trailing slashes are stripped.
+
+### Routes
+
+Markdash registers:
+
+- `GET /<prefix>` — HTML dashboard (per-service buttons, inline CSS, no external JS)
+- `POST /<prefix>/reload/manifest` — calls `manifest.reload()`
+- `POST /<prefix>/reload/engine` — calls `engine.reload()`
+- `POST /<prefix>/clear/pages` — calls `pagable.clear()`
+
+### Security
+
+**Always gate Markdash behind Authen in production**. The endpoints can invalidate server-wide caches without any per-action confirmation, so public exposure is a vector for accidental or malicious cache thrashing.
+
+```typescript
+plugins: [
+  Authen({ ... }),          // gate first
+  Markdash({ ... }),        // then mount
+]
+```
+
+Alternatively, disable the plugin outside development:
+
+```typescript
+plugins: [
+  ...(process.env.NODE_ENV === "production" ? [] : [Markdash()]),
+]
+```
+
+See the [Markdash plugin reference](/plugins/markdash) for detailed endpoint behavior, configuration types, and notes on extending the dashboard.

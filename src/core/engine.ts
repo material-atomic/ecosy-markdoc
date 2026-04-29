@@ -1,8 +1,8 @@
+import { Inject } from "./executor";
+import { JSONQuery } from "@ecosy/json/json-query";
+import type { FetchableLike } from "./fetchable";
 import type { ConfigurationLike } from "./configuration";
 import type { DocumentationLike } from "./documentation";
-import { Inject } from "./executor";
-import type { FetchableLike } from "./fetchable";
-import { JSONQuery } from "../json/json-query";
 import type { PluginLike, StoreLike } from "./plugin";
 
 // ─── Types ──────────────────────────────────────────────────────────
@@ -14,6 +14,12 @@ export interface EngineLike {
    * HTML files in parallel. Call once at startup.
    */
   preload(): Promise<void>;
+
+  /**
+   * Force a fresh reload of all components from the CDN. Clears the cached
+   * component map, resets the preload flag, then re-runs preload.
+   */
+  reload(): Promise<void>;
 
   /**
    * Merge inline components from plugin registries into the Engine.
@@ -82,13 +88,10 @@ function parseTags(html: string): MarkdocTag[] {
 }
 
 function interpolateVars(content: string, vars: Record<string, unknown>): string {
-  return content.replace(
-    /\{\{\s*([\w][\w.-]*)\s*\}\}/g,
-    (match, expr) => {
-      const value = JSONQuery.evaluate(vars, expr);
-      return value !== undefined && value !== null ? String(value) : match;
-    },
-  );
+  return content.replace(/\{\{\s*([\w][\w.-]*)\s*\}\}/g, (match, expr) => {
+    const value = JSONQuery.evaluate(vars, expr);
+    return value !== undefined && value !== null ? String(value) : match;
+  });
 }
 
 // ─── Manifest parser ────────────────────────────────────────────────
@@ -190,6 +193,12 @@ class EngineNode implements EngineLike {
     }
   }
 
+  async reload(): Promise<void> {
+    this.components.clear();
+    this.preloaded = false;
+    await this.preload();
+  }
+
   mergePluginComponents(plugins: PluginLike[]): void {
     for (const plugin of plugins) {
       const registry = plugin.getRegistry();
@@ -206,11 +215,7 @@ class EngineNode implements EngineLike {
     return this.resolveRecursive(html, store, 0);
   }
 
-  private async resolveRecursive(
-    html: string,
-    store: StoreLike,
-    depth: number,
-  ): Promise<string> {
+  private async resolveRecursive(html: string, store: StoreLike, depth: number): Promise<string> {
     if (depth >= MAX_DEPTH) return html;
 
     const tags = parseTags(html);
@@ -252,5 +257,7 @@ class EngineNode implements EngineLike {
     return result.success ? (result.data ?? null) : null;
   }
 }
+
+export type { EngineNode };
 
 export const Engine = EngineNode;

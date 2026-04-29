@@ -1,6 +1,6 @@
-import { clone } from "@ecosy/core";
-import { RepositoryInfo, RuntimeAccessor } from "./common";
-import { ConfigurationLike } from "./configuration";
+import { clone } from "@ecosy/core/utilities";
+import type { RepositoryInfo, RuntimeAccessor } from "./common";
+import type { ConfigurationLike } from "./configuration";
 
 export class Repository {
   constructor(private readonly info: RepositoryInfo) {}
@@ -18,7 +18,7 @@ export class Repository {
   }
 
   parse(repo: string) {
-    const match = repo.match(/^(?:github\.com:)?([^\/]+)\/([^@]+)(?:@(.+))?$/);
+    const match = repo.match(/^(?:github\.com:)?([^/]+)\/([^@]+)(?:@(.+))?$/);
     if (!match) return null;
 
     const [, username, repository, branch] = match;
@@ -30,12 +30,13 @@ export class Repository {
   }
 }
 
-export const Repo = {
+export const Repo: {
+  target: typeof Repository;
+  get: (accessor: RuntimeAccessor) => readonly [RepositoryInfo];
+} = {
   target: Repository,
-  get: (accessor: RuntimeAccessor) => {
+  get: (accessor) => {
     const config = accessor.get<ConfigurationLike>("configuration");
-    return [clone(config.options)];
+    return [clone(config.options)] as const;
   },
 };
-
-

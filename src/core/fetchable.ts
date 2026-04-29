@@ -1,12 +1,12 @@
 import { Http } from "@ecosy/core";
-import { Injectable } from "../classable/injectable";
+import { Injectable } from "@ecosy/classable/injectable";
 
 export interface FetchableLike {
   http: Http;
 }
 
 export class Fetchable extends Injectable({
-  http: Http
+  http: Http,
 }) {
   onInit(): void | Promise<void> {
     // Register default configuration (extract result.data)

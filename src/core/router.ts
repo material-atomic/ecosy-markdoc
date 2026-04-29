@@ -1,4 +1,4 @@
-import { Serialize } from "@ecosy/core";
+import { Serialize } from "@ecosy/core/serialize";
 import type { RuntimeAccessor } from "./common";
 import type { ManifestLike } from "./manifestable";
 import type { PluginLike, PluginRouteSchema } from "./plugin";
@@ -69,7 +69,7 @@ class RouterNode implements RouterLike {
         const name = plugin.constructor?.name ?? "Unknown";
         throw new Error(
           `[Markdoc] Plugin "${name}" registers urls but does not implement fetch(). ` +
-          `Plugins with urls must declare a fetch(req, res) method.`,
+            `Plugins with urls must declare a fetch(req, res) method.`,
         );
       }
 
