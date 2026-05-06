@@ -6,9 +6,11 @@
  *
  *   1. `provider: "http://127.0.0.1:<port>/gh"` — points the runtime's URL
  *      builder at a local server instead of jsDelivr.
- *   2. `imports.locally = Locally({ port })` — the importer classable that
- *      boots that local server and serves files from the working copy,
- *      mirroring jsDelivr's `/gh/<owner>/<repo>@<branch>/<path>` shape.
+ *   2. `plugins: [Locally({ port })]` — the global plugin that boots that
+ *      local server and serves files from the working copy, mirroring
+ *      jsDelivr's `/gh/<owner>/<repo>@<branch>/<path>` shape. Boot fires
+ *      eagerly from `getPlugins()` so the port is bound before
+ *      `manifest.preload()` runs on the first request.
  *
  * The wrapper is **no-op on production and on edge runtimes** (Cloudflare
  * Workers, Deno Deploy, Vercel Edge). Two layers enforce that:
@@ -226,15 +228,15 @@ export default function withLocally(options: LocallyConfigs): MarkdocConfigurati
   };
 }
 
-// ─── Locally plugin — lazy bind via `beforeRequest` ──────────────────
+// ─── Locally plugin — `__preloadSync` so server binds before content fetch ─
 //
-// Shipped as a plugin rather than an import so the HTTP server binds on
-// the **first request**, not at module load. `markdoc(config)` eagerly
-// builds the runtime; putting Locally in `imports` would fire the
-// server.listen() call as a side effect of `import "./index"`. As a
-// `__global` plugin, LocallyService is instantiated by `Pluginable.resolve`
-// only when a request arrives — and the boot is cached behind a shared
-// promise so concurrent requests converge without double-binding.
+// Markdoc's `Server.handleRequest` awaits `pluginable.resolve()` BEFORE
+// running `manifest.preload()` / `engine.preload()`. For `__preloadSync`
+// plugins the `start()` hook is awaited inside `resolve()`, so by the
+// time the manifest fetch goes out the local HTTP server is already
+// bound. Without this marker, plugin `start()` runs in parallel with
+// preload — fine for self-contained setup, but races for plugins that
+// intercept content fetches (this is one of those).
 //
 // Exported so advanced consumers can plug it in manually. Most callers
 // should go through `withLocally`.
@@ -279,7 +281,7 @@ export function Locally(options: LocallyOptions = {}): PluginConstructor {
 
       // Await the `listening` event so subsequent requests are guaranteed
       // to find the port bound — no race when Fetchable fires its GET
-      // right after this plugin's beforeRequest resolves.
+      // right after this plugin's start() resolves.
       await new Promise<void>((resolve, reject) => {
         server.once("listening", () => resolve());
         server.once("error", (err) => reject(err));
@@ -299,16 +301,22 @@ export function Locally(options: LocallyOptions = {}): PluginConstructor {
 
   return class LocallyService extends Plugin {
     static readonly __global = true;
+    /**
+     * Tell the runtime to await this plugin's `start()` before
+     * `manifest.preload()` runs — the local HTTP server has to be bound
+     * before the runtime fires its first content fetch through it.
+     */
+    static readonly __preloadSync = true;
 
     getRegistry(): PluginRegistry {
       return {};
     }
 
-    async beforeRequest(): Promise<null> {
-      // Idempotent — first request pays the start cost, subsequent
-      // requests await an already-resolved promise.
+    async start(): Promise<void> {
+      // Markdoc awaits this before content preload thanks to
+      // `__preloadSync`; subsequent invocations dedupe via the shared
+      // `bootPromise` so concurrent resolves never double-bind.
       await ensureStarted();
-      return null;
     }
 
     /** Closes the HTTP server. Wired up for future `disposeInjects` support. */

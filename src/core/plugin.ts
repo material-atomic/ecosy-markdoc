@@ -70,9 +70,21 @@ export interface PluginLike {
    * once per process/isolate; for transient plugins this is once per request
    * (since they are recreated each time).
    *
-   * Awaited before `beginRequest` runs, so the first request pays the
-   * setup cost. Use for one-time work that needs the live runtime to be
-   * ready: timer initialization, state seeding, eager cache warm-up.
+   * **Default phase (post-preload, parallel):** `start()` is fired during
+   * `pluginable.resolve()` but its promise is awaited *in parallel* with
+   * `manifest.preload()` / `engine.preload()` — the request pipeline waits
+   * for the union of all of them, so plugin start happens roughly alongside
+   * preload but does NOT gate it. Use this for self-contained setup that
+   * doesn't need to be visible to the manifest fetch (timers, state seed,
+   * eager cache warm-up that operates on data the plugin itself holds).
+   *
+   * **Pre-preload phase (`static __preloadSync = true`):** for plugins that
+   * MUST be ready before the manifest/engine fetch begins (e.g. a local
+   * filesystem mirror that the runtime's `Fetchable` will hit). When the
+   * static marker is set, `pluginable.resolve()` awaits this `start()`
+   * sequentially before returning, so it completes before any preload
+   * fetch goes out. Costs one extra round-trip latency on the first
+   * request — only opt in when the plugin truly intercepts content fetches.
    *
    * Errors thrown here propagate to the request and surface as a 500. If
    * the bootstrap is best-effort (metrics flush, optional warm-up), catch
@@ -158,8 +170,9 @@ export abstract class Plugin implements PluginLike {
  * of an anonymous class expression (which TS can't serialize when the
  * class body has `private`/`protected` members — TS4094).
  *
- * Statics such as `__global` / `__layout` are attached at runtime; when
- * a specific factory needs them in its public type, extend this interface:
+ * Statics such as `__global` / `__layout` / `__preloadSync` are attached
+ * at runtime; when a specific factory needs them in its public type,
+ * extend this interface:
  *
  * ```ts
  * interface LayoutPluginConstructor extends PluginConstructor {
@@ -172,17 +185,49 @@ export interface PluginConstructor {
   new (ctx: RequestContext, store: StoreLike): Plugin;
 }
 
+/**
+ * Static marker — plugins whose `start()` hook must complete before
+ * `manifest.preload()` and `engine.preload()` run. See `PluginLike.start`
+ * for when to opt in.
+ */
+export interface PreloadSyncStatic {
+  readonly __preloadSync: true;
+}
+
 // ─── Pluginable ────────────────────────────────────────────────────
 
 export interface PluginableLikeLike {
   /**
    * Resolve all plugin instances for the current request.
    *
-   * Async because newly-instantiated plugins fire their `start()` hook here —
-   * `__global` plugins on first cache, transient plugins on every resolve.
-   * The returned array is ready to enter the request pipeline.
+   * Two-phase lifecycle so plugins can opt into running before content
+   * preload:
+   *
+   *   1. **`__preloadSync: true`** plugins' `start()` is awaited *here*,
+   *      before this method returns. Use for plugins that intercept the
+   *      runtime's content fetches (filesystem mirrors, request rewriters)
+   *      and must be ready before `manifest.preload()` goes out.
+   *   2. Other plugins' `start()` is fired in the background; the returned
+   *      promises are tracked and await-able via `waitStart()`.
+   *
+   * Caller pattern in `Server.handleRequest`:
+   * ```ts
+   * const plugins = await pluginable.resolve(ctx, store); // sync starts done
+   * await Promise.allSettled([
+   *   manifest.preload(),
+   *   engine.preload(),
+   *   pluginable.waitStart(),                              // async starts join here
+   * ]);
+   * ```
    */
   resolve(ctx: RequestContext, store: StoreLike): Promise<PluginLike[]>;
+
+  /**
+   * Await the in-flight `start()` promises of plugins that did NOT declare
+   * `__preloadSync` — kicked off by `resolve()` but not awaited there.
+   * Idempotent and safe to call when there are no pending starts.
+   */
+  waitStart(): Promise<void>;
 
   /** Get a plugin by ID. O(1) Map lookup. */
   get(id: string): PluginLike | undefined;
@@ -223,6 +268,14 @@ class PluginableNode extends Revalidate({}) implements PluginableLikeLike {
    * naturally because the WeakMap loses its key.
    */
   private readonly started = new WeakMap<PluginLike, Promise<void>>();
+  /**
+   * Pending non-`__preloadSync` `start()` promises from the current
+   * resolve cycle. `resolve()` populates this; `waitStart()` awaits and
+   * clears. Held as a strong-reference array (not WeakMap) because we
+   * need to iterate; entries fall out of memory each time `waitStart()`
+   * resets.
+   */
+  private pendingAsyncStarts: Promise<void>[] = [];
   private lastResolved = 0;
   private readonly plugins: readonly PluginableLike[];
 
@@ -235,6 +288,26 @@ class PluginableNode extends Revalidate({}) implements PluginableLikeLike {
   private isGlobal(plugin: PluginableLike): boolean {
     const target = classable.getTarget(plugin);
     return (target as unknown as Partial<GlobalStatic>).__global === true;
+  }
+
+  private isPreloadSync(plugin: PluginableLike): boolean {
+    const target = classable.getTarget(plugin);
+    return (target as unknown as Partial<PreloadSyncStatic>).__preloadSync === true;
+  }
+
+  /**
+   * Schedule a plugin's `start()` (deduped via the `started` WeakMap) and
+   * return the promise. Plugins with no `start` method short-circuit to a
+   * resolved promise.
+   */
+  private scheduleStart(instance: PluginLike): Promise<void> {
+    if (typeof instance.start !== "function") return Promise.resolve();
+    let pending = this.started.get(instance);
+    if (!pending) {
+      pending = Promise.resolve().then(() => instance.start!());
+      this.started.set(instance, pending);
+    }
+    return pending;
   }
 
   async resolve(ctx: RequestContext, store: StoreLike): Promise<PluginLike[]> {
@@ -258,15 +331,18 @@ class PluginableNode extends Revalidate({}) implements PluginableLikeLike {
       resolve: (key: string) => runtime[key],
     };
 
-    // Plugins whose `start()` we need to await before this resolve returns.
-    // Includes both transient plugins (started fresh every resolve) and
-    // global plugins on their first cache.
-    const toStart: PluginLike[] = [];
+    // Plugins whose `start()` needs to be scheduled. Split during
+    // instantiation by their `__preloadSync` marker so the request
+    // pipeline can await sync starts before content preload, and
+    // background-await non-sync starts in parallel with preload.
+    const toStartSync: PluginLike[] = [];
+    const toStartAsync: PluginLike[] = [];
 
     pushScope(scope);
     try {
       for (const plugin of this.plugins) {
         let instance: PluginLike;
+        let isNew = false;
 
         const Target = classable.getTarget<PluginLike>(plugin);
 
@@ -276,12 +352,17 @@ class PluginableNode extends Revalidate({}) implements PluginableLikeLike {
             cached = new Target(ctx, store);
             this.globals.set(plugin, cached);
             this.lastResolved = Date.now();
-            toStart.push(cached);
+            isNew = true;
           }
           instance = cached;
         } else {
           instance = new Target(ctx, store);
-          toStart.push(instance);
+          isNew = true;
+        }
+
+        if (isNew) {
+          if (this.isPreloadSync(plugin)) toStartSync.push(instance);
+          else toStartAsync.push(instance);
         }
 
         // Register by ID for O(1) lookup
@@ -291,24 +372,27 @@ class PluginableNode extends Revalidate({}) implements PluginableLikeLike {
       popScope();
     }
 
-    // Fire `start()` for each new instance, deduping concurrent resolves
-    // via the `started` WeakMap. Awaited so the request pipeline only
-    // proceeds once one-time setup (timers, state seed) is complete.
-    if (toStart.length > 0) {
-      await Promise.all(
-        toStart.map((instance) => {
-          if (typeof instance.start !== "function") return Promise.resolve();
-          let pending = this.started.get(instance);
-          if (!pending) {
-            pending = Promise.resolve().then(() => instance.start!());
-            this.started.set(instance, pending);
-          }
-          return pending;
-        }),
-      );
+    // Phase 1: `__preloadSync` plugins — must be ready before content
+    // preload runs. Awaited sequentially as a group (parallel within
+    // group, awaited as a whole). Errors propagate so the request 500s
+    // immediately rather than silently leaving the plugin un-started.
+    if (toStartSync.length > 0) {
+      await Promise.all(toStartSync.map((instance) => this.scheduleStart(instance)));
     }
 
+    // Phase 2: regular plugins — start() runs in background; caller
+    // awaits via `waitStart()` in parallel with manifest/engine preload.
+    // Reset the pending-starts list to this cycle's batch.
+    this.pendingAsyncStarts = toStartAsync.map((instance) => this.scheduleStart(instance));
+
     return [...this.registry.values()];
+  }
+
+  async waitStart(): Promise<void> {
+    if (this.pendingAsyncStarts.length === 0) return;
+    const pending = this.pendingAsyncStarts;
+    this.pendingAsyncStarts = [];
+    await Promise.all(pending);
   }
 
   get(id: string): PluginLike | undefined {

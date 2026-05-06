@@ -1,6 +1,6 @@
 {
   "name": "@ecosy/markdoc",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Headless markdown documentation framework for edge runtimes — GitHub as CMS via jsDelivr",
   "license": "MIT",
   "publishConfig": {

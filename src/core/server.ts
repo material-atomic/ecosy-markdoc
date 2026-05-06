@@ -332,17 +332,21 @@ class ServerNode extends Injectable({
 
   private async handleRequest(request: Request): Promise<Response> {
     const ctx = RequestContext.from(request);
+
+    // Resolve plugins first so any `__preloadSync` plugins (filesystem
+    // mirrors, content interceptors, …) finish their `start()` BEFORE
+    // `manifest.preload()` and `engine.preload()` go out. Non-sync plugin
+    // starts are kicked off in the background and joined in the parallel
+    // block below via `waitStart()`. See PluginableLikeLike.resolve docs.
+    const plugins = await this.pluginable.resolve(ctx, this.store);
+
     await Promise.allSettled([
       this.manifest.preload(),
       this.engine.preload(),
       this.loadGlobalMetadata(),
+      this.pluginable.waitStart(),
     ]);
 
-    // Resolve plugins and build route table.
-    // Awaited so newly-instantiated plugins (global on first cache,
-    // transient on every request) have their `start()` hook complete
-    // before the request pipeline proceeds.
-    const plugins = await this.pluginable.resolve(ctx, this.store);
     this.router.build(this.manifest, plugins);
 
     // Merge inline components from plugin registries into the Engine

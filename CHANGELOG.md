@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.1.1 (2026-05-06)
+
+### New Features
+
+- **`__preloadSync` plugin static** — opt-in marker for plugins whose `start()` hook must complete before `manifest.preload()` and `engine.preload()` run. Use for plugins that intercept the runtime's content fetches (filesystem mirrors, request rewriters, custom transports). Without the marker, `start()` runs in parallel with content preload (existing behavior — fast path for self-contained setup).
+- **`Pluginable.waitStart()`** — joins the in-flight `start()` promises of non-`__preloadSync` plugins. `Server.handleRequest` calls it inside `Promise.allSettled([manifest.preload(), engine.preload(), pluginable.waitStart()])` so non-sync starts run alongside content preload.
+- **Two-phase `Pluginable.resolve()`** — when called, awaits `__preloadSync` plugins' `start()` synchronously before returning, while non-sync plugins' `start()` is fired and tracked for later joining via `waitStart()`. Server consumes the new contract; plugins without the marker see no behavior change.
+
+### Fixes
+
+- **`docs/locally.ts` reference**: switched plugin hook from `beforeRequest` (does not exist; was a stale rename — actual hook is `beginRequest`) to `start`. Combined with the new `__preloadSync = true` marker, the local HTTP server now binds before the first content fetch leaves the runtime.
+
+### Documentation
+
+- 0.1.0 changelog entries referenced `beforeRequest` / `afterRequest` — these are the prior names of `beginRequest` / `endRequest` (the actual runtime hooks). The runtime contract has always been the latter.
+
 ## 0.1.0 (2026-04-29)
 
 Initial public release. `@ecosy/markdoc` is a headless markdown documentation runtime for edge environments — GitHub as CMS, jsDelivr as CDN, WinterCG `Request`/`Response` as the public API.
