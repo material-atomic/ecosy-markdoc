@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.1.2 (2026-05-06)
+
+### New Features
+
+- **`Plugin.runtime` accessor** — every plugin instance now exposes a read-only `RuntimeContext` via `this.runtime`. External plugins can read reserved injectables directly (`this.runtime.configuration.options.parser`, `this.runtime.engine`, …) without importing `Inject` from internal paths or rebuilding the scope mechanism. Resolved lazily through `MarkdocTeleport`, so it's safe to read from any method — by the time a plugin runs, the runtime singleton is fully built.
+- **`RuntimeContext` type** — public structural shape of the runtime, listing every reserved injectable as a `readonly` property. Each property is typed `unknown` to avoid import cycles inside `core/`; consumers cast at the use site or via local type aliases combining `RuntimeContext` with the concrete `*Like` interfaces.
+- **Public injectable interfaces** — `ConfigurationLike`, `DocumentationLike`, `EngineLike`, `FetchableLike`, `ManifestLike`, `PagableLike` are now re-exported from `@ecosy/markdoc`. Combined with `RuntimeContext`, external plugins can type their runtime access cleanly:
+  ```ts
+  import { Plugin, type ConfigurationLike } from "@ecosy/markdoc";
+  class MyPlugin extends Plugin {
+    async fetch(req, res) {
+      const cfg = this.runtime.configuration as ConfigurationLike;
+      const html = cfg.options.parser?.(markdown, {});
+    }
+  }
+  ```
+- **`PreloadSyncStatic` type** — exported alongside the existing `__preloadSync` mechanism so external plugins can declare their static markers with the official type.
+
+### Notes
+
+- Built-in plugins (`Markdash`, `AutoInvalidate`, …) still use the `Inject<X>("x")` constructor-default-parameter idiom; both forms continue to resolve to the same instances. The `this.runtime` accessor is the recommended public API for new external plugins — no internal-path imports required.
+- No changes to `Revalidate` mixin — kept minimal (TTL only). Runtime access lives on `Plugin` directly.
+
 ## 0.1.1 (2026-05-06)
 
 ### New Features

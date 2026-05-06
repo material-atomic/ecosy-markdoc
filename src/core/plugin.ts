@@ -4,6 +4,7 @@ import { pushScope, popScope } from "@ecosy/classable/inject";
 import { Revalidate } from "./revalidate";
 import type { GlobalStatic } from "@ecosy/classable/global";
 import type { Classable } from "@ecosy/classable/types";
+import type { RuntimeContext } from "./common";
 import type { ConfigurationLike } from "./configuration";
 import type { MarkdocRequest } from "./request";
 import type { MarkdocResponse } from "./response";
@@ -142,6 +143,33 @@ export type PluginableLike = Classable<PluginLike, any[], never>;
 /** Auto-incrementing counter for default plugin IDs. */
 let pluginSeq = 0;
 
+/**
+ * Plugin base class. Subclasses get one inherited affordance beyond the
+ * declared `getRegistry()` contract:
+ *
+ *   - `this.runtime` (read-only `RuntimeContext`) — direct access to
+ *     reserved runtime injectables (`configuration`, `engine`, `manifest`,
+ *     `fetchable`, `pagable`, `documentation`, `pluginable`, `repo`).
+ *     Resolved lazily via `MarkdocTeleport`, safe to call from any method
+ *     (the runtime singleton is built before `Pluginable.resolve` ever
+ *     instantiates a plugin).
+ *
+ * Recommended idiom for external plugins:
+ *
+ * ```ts
+ * import { Plugin, type ConfigurationLike } from "@ecosy/markdoc";
+ *
+ * class MyPlugin extends Plugin {
+ *   async fetch(req, res) {
+ *     const parser = (this.runtime.configuration as ConfigurationLike).options.parser;
+ *     // …
+ *   }
+ * }
+ * ```
+ *
+ * Built-in plugins may continue to use `Inject<X>("x")` constructor
+ * default parameters — both paths resolve to the same instances.
+ */
 export abstract class Plugin implements PluginLike {
   readonly id: string;
 
@@ -151,6 +179,16 @@ export abstract class Plugin implements PluginLike {
   ) {
     // Use class name as base, append sequence for uniqueness
     this.id = `${this.constructor.name}:${++pluginSeq}`;
+  }
+
+  /**
+   * Live runtime singleton — see {@link RuntimeContext}. Lazy: each
+   * access resolves through `MarkdocTeleport` (cheap Map lookup),
+   * which means plugins can read this from any method without worrying
+   * about construction-order race with the runtime itself.
+   */
+  get runtime(): RuntimeContext {
+    return MarkdocTeleport.get<RuntimeContext>("runtime");
   }
 
   abstract getRegistry(): PluginRegistry;
@@ -285,6 +323,15 @@ class PluginableNode extends Revalidate({}) implements PluginableLikeLike {
     this.revalidate = this.configuration.options.revalidate || 0;
   }
 
+  /**
+   * Live runtime singleton — same accessor pattern as `Plugin.runtime`.
+   * Lazy via `MarkdocTeleport`; safe to read from any method (Pluginable
+   * is itself part of Runtime, but methods only run after construction).
+   */
+  get runtime(): RuntimeContext {
+    return MarkdocTeleport.get<RuntimeContext>("runtime");
+  }
+
   private isGlobal(plugin: PluginableLike): boolean {
     const target = classable.getTarget(plugin);
     return (target as unknown as Partial<GlobalStatic>).__global === true;
@@ -323,12 +370,15 @@ class PluginableNode extends Revalidate({}) implements PluginableLikeLike {
     // `= Inject<T>("manifest")` default parameters. `Inject` walks the
     // classable scope stack — empty by default because Runtime has
     // already committed by the time plugins resolve. Push a thin scope
-    // here that delegates key lookups to the live Runtime instance so
-    // every plugin's `Inject(...)` default parameter resolves correctly.
-    const runtime = MarkdocTeleport.get<Record<string, unknown>>("runtime");
+    // here that delegates key lookups to the live runtime so every
+    // plugin's `Inject(...)` default parameter resolves correctly.
+    // (`Plugin.runtime` getter is the recommended path for new plugins,
+    // but the scope is still required for the legacy `Inject<T>` idiom
+    // that built-in plugins use.)
+    const runtimeRecord = this.runtime as unknown as Record<string, unknown>;
     const scope = {
-      hasKey: (key: string) => runtime != null && key in runtime,
-      resolve: (key: string) => runtime[key],
+      hasKey: (key: string) => key in runtimeRecord,
+      resolve: (key: string) => runtimeRecord[key],
     };
 
     // Plugins whose `start()` needs to be scheduled. Split during

@@ -2,16 +2,13 @@ import {
   Plugin,
   type PluginConstructor,
   type PluginRegistry,
-  type StoreLike,
 } from "../core/plugin";
 import type { MarkdocRequest } from "../core/request";
 import type { MarkdocResponse } from "../core/response";
-import type { RequestContext } from "../core/request-context";
 import type { ManifestLike } from "../core/manifestable";
 import type { EngineLike } from "../core/engine";
 import type { PagableLike } from "../core/pagable";
 import type { DocumentationLike } from "../core/documentation";
-import { Inject } from "../core/executor";
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -104,15 +101,17 @@ export function Markdash(options: MarkdashOptions = {}): PluginConstructor {
   return class MarkdashPlugin extends Plugin {
     static readonly __global = true;
 
-    constructor(
-      ctx: RequestContext,
-      store: StoreLike,
-      private readonly manifest = Inject<ManifestLike>("manifest"),
-      private readonly engine = Inject<EngineLike>("engine"),
-      private readonly pagable = Inject<PagableLike>("pagable"),
-      private readonly documentation = Inject<DocumentationLike>("documentation"),
-    ) {
-      super(ctx, store);
+    private get manifest(): ManifestLike {
+      return this.runtime.manifest;
+    }
+    private get engine(): EngineLike {
+      return this.runtime.engine;
+    }
+    private get pagable(): PagableLike {
+      return this.runtime.pagable;
+    }
+    private get documentation(): DocumentationLike {
+      return this.runtime.documentation;
     }
 
     getRegistry(): PluginRegistry {

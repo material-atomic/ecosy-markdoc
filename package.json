@@ -1,6 +1,6 @@
 {
   "name": "@ecosy/markdoc",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Headless markdown documentation framework for edge runtimes — GitHub as CMS via jsDelivr",
   "license": "MIT",
   "publishConfig": {
@@ -129,7 +129,7 @@
   ],
   "author": "material-atomic",
   "dependencies": {
-    "@ecosy/classable": "^0.2.0",
+    "@ecosy/classable": "^0.2.1",
     "@ecosy/core": "^0.3.4",
     "@ecosy/json": "^0.1.0",
     "front-matter": "^4.0.2"

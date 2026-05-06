@@ -1,7 +1,14 @@
 import type { InjectClassable, InjectedAccessor } from "@ecosy/classable/injectable";
 import type { MarkdownParser } from "./parser";
-import type { PluginableLike } from "./plugin";
+import type { PluginableLike, PluginableLikeLike } from "./plugin";
 import type { RequestLifecycleOptions } from "./request-lifecycle";
+import type { ConfigurationLike } from "./configuration";
+import type { DocumentationLike } from "./documentation";
+import type { EngineLike } from "./engine";
+import type { FetchableLike } from "./fetchable";
+import type { ManifestLike } from "./manifestable";
+import type { PagableLike } from "./pagable";
+import type { Repository } from "./repo";
 
 export interface RepositoryInfo {
   repo: string;
@@ -102,4 +109,26 @@ export type InjectedName =
 
 export interface RuntimeAccessor {
   get<LikelyType>(name: InjectedName): LikelyType;
+}
+
+/**
+ * Read-only structural view of the live runtime — what `Plugin.runtime`
+ * exposes. Plugins access reserved injectables as plain properties;
+ * type-level `readonly` ensures no accidental mutation. Resolved lazily
+ * via `MarkdocTeleport`, so referencing a property only triggers the
+ * lookup once.
+ *
+ * All `*Like` interfaces are imported as types (no runtime cycle) so
+ * external plugins can write `this.runtime.configuration.options.parser`
+ * with full IDE completion — no casts required.
+ */
+export interface RuntimeContext {
+  readonly configuration: ConfigurationLike;
+  readonly engine: EngineLike;
+  readonly fetchable: FetchableLike;
+  readonly manifest: ManifestLike;
+  readonly pagable: PagableLike;
+  readonly documentation: DocumentationLike;
+  readonly pluginable: PluginableLikeLike;
+  readonly repo: Repository;
 }

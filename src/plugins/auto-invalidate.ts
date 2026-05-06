@@ -1,14 +1,11 @@
-import { Inject } from "../core/executor";
 import {
   Plugin,
   type PluginConstructor,
   type PluginRegistry,
-  type StoreLike,
 } from "../core/plugin";
 import type { ManifestLike } from "../core/manifestable";
 import type { EngineLike } from "../core/engine";
 import type { PagableLike } from "../core/pagable";
-import type { RequestContext } from "../core/request-context";
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -114,14 +111,14 @@ export function AutoInvalidate(options: AutoInvalidateOptions): PluginConstructo
   return class AutoInvalidatePlugin extends Plugin {
     static readonly __global = true;
 
-    constructor(
-      ctx: RequestContext,
-      store: StoreLike,
-      private readonly manifest = Inject<ManifestLike>("manifest"),
-      private readonly engine = Inject<EngineLike>("engine"),
-      private readonly pagable = Inject<PagableLike>("pagable"),
-    ) {
-      super(ctx, store);
+    private get manifest(): ManifestLike {
+      return this.runtime.manifest;
+    }
+    private get engine(): EngineLike {
+      return this.runtime.engine;
+    }
+    private get pagable(): PagableLike {
+      return this.runtime.pagable;
     }
 
     /** Set on `start()`; null until then. */
